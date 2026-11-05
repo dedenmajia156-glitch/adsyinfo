@@ -1,6 +1,4 @@
-const SUPABASE_URL = 'https://slpifuzuclhczavckxcu.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNscGlmdXp1Y2xoY3phdmNreGN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTAyNTQsImV4cCI6MjEwOTQ2NjI1NH0.wLQugZ7v5Vn6A7vGVXPiVtJXp54oJKmdvkDqoEcjC4I';
-
+const SUPABASE_URL="https://slpifuzuclhczavckxcu.supabase.co";const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNscGlmdXp1Y2xoY3phdmNreGN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTAyNTQsImV4cCI6MjEwOTQ2NjI1NH0.wLQugZ7v5Vn6A7vGVXPiVtJXp54oJKmdvkDqoEcjC4I";
 function getHeaders(token) {
   return {
     'Content-Type': 'application/json',
@@ -50,7 +48,6 @@ async function sbCount(table, query, token) {
   return match ? parseInt(match[1]) : 0;
 }
 
-// Auth helpers
 async function authSignIn(email, password) {
   const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
