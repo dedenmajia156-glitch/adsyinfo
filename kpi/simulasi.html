@@ -6,25 +6,52 @@
   <title>Simulasi KPI — KPI & Gaji System</title>
   <link rel="stylesheet" href="/css/style.css?v=5">
   <style>
-    /* Scrollable wrapper — sama seperti .bulk-wrap di input-bulk */
-    .sim-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .sim-inner { min-width: 480px; }
+    /* === Tabel sama persis seperti input-bulk === */
+    .bulk-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+    .bulk-tbl { border-collapse: collapse; font-size: 12px; white-space: nowrap; width: 100%; }
+    .bulk-tbl th, .bulk-tbl td { border: 1px solid #d1d5db; padding: 5px 8px; }
 
-    .sim-section { background:#fef08a; font-weight:800; font-size:12px; padding:9px 16px; color:#374151; border-bottom:1px solid var(--border); }
-    .sim-row { display:grid; grid-template-columns:2fr 60px 90px 100px 100px; gap:4px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--gray-100); font-size:13px; }
-    .sim-row.prod-row { padding-left:36px; background:#fafafa; }
-    .sim-header { background:var(--gray-50); font-weight:700; font-size:11px; color:var(--gray-500); text-transform:uppercase; letter-spacing:.4px; }
+    .s0,.s1,.s2,.s3,.s4,.s5,.s6 { position:sticky; z-index:3; background:#fff; }
+    .s0 { left:0;    min-width:32px; }
+    .s1 { left:32px; min-width:160px; }
+    .s2 { min-width:60px; }
+    .s3 { min-width:60px; }
+    .s4 { min-width:60px; }
+    .s5 { min-width:60px; }
+    .s6 { min-width:90px; border-right:2px solid #9ca3af !important; }
 
-    /* Kolom nama sticky — sama seperti s1 di input-bulk */
-    .sim-row > div:first-child { position:sticky; left:0; background:inherit; z-index:2; padding-right:8px; }
-    .sim-section { position:sticky; left:0; }
+    .bulk-tbl thead .s0,.bulk-tbl thead .s1,.bulk-tbl thead .s2,
+    .bulk-tbl thead .s3,.bulk-tbl thead .s4,.bulk-tbl thead .s5,.bulk-tbl thead .s6 {
+      background:#0891b2; color:#fff; font-weight:700; text-align:center; z-index:5;
+    }
 
-    .sim-inp { width:80px; padding:4px 6px; border:1px solid #93c5fd; border-radius:4px; font-size:12px; text-align:center; }
-    .sim-inp:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 2px rgba(8,145,178,.15); }
-    .sim-poin { font-weight:700; text-align:right; padding-right:4px; }
-    .sim-pos { color:#15803d; } .sim-neg { color:#b91c1c; } .sim-zer { color:#9ca3af; }
-    .sim-summary-row { background:#fef3c7; font-weight:800; border-top:2px solid #374151; }
+    .r-section td,
+    .r-section .s0,.r-section .s1,.r-section .s2,
+    .r-section .s3,.r-section .s4,.r-section .s5,.r-section .s6 {
+      background:#fef08a !important; font-weight:800; color:#374151;
+    }
+    .r-subhdr td,
+    .r-subhdr .s0,.r-subhdr .s1,.r-subhdr .s2,
+    .r-subhdr .s3,.r-subhdr .s4,.r-subhdr .s5,.r-subhdr .s6 {
+      background:#fef9c3 !important; font-weight:600; font-size:11px; color:#6b7280;
+    }
+    .r-summary td,
+    .r-summary .s0,.r-summary .s1,.r-summary .s2,
+    .r-summary .s3,.r-summary .s4,.r-summary .s5,.r-summary .s6 {
+      background:#fef3c7 !important; font-weight:800; border-top:2px solid #374151;
+    }
 
+    .cell-inp input, .cell-inp select {
+      width:72px; padding:2px 4px; text-align:center;
+      border:1px solid #93c5fd; border-radius:3px; font-size:12px;
+    }
+    .cell-poin { text-align:right; font-weight:700; font-size:12px; min-width:72px; }
+    .poin-pos  { color:#15803d; background:#dcfce7; }
+    .poin-neg  { color:#b91c1c; background:#fee2e2; }
+    .poin-zer  { color:#9ca3af; }
+    .total-poin { font-size:13px; font-weight:900; }
+
+    /* Result bar */
     .result-bar { display:grid; grid-template-columns:repeat(3,1fr); gap:0; border-top:2px solid var(--border); }
     .result-item { text-align:center; padding:20px 16px; border-right:1px solid var(--border); }
     .result-item:last-child { border-right:none; }
@@ -102,7 +129,7 @@ let currentEmployee = null;
 let template        = null;
 let products        = [];
 let pengkaliRules   = [];
-let simData         = {}; // indId_prodId -> achieve value
+let simData         = {};
 
 (async () => {
   currentEmployee = await requireAuth();
@@ -119,7 +146,6 @@ async function loadSimulasi() {
   }
 
   try {
-    // Load template
     const tmplArr = await sbGet('kpi_templates',
       `?select=id,nama,jabatan(nama,divisions(nama)),kpi_sections(id,nama,type,urutan,kpi_indicators(id,nama,type,bobot,point_total,config,urutan))&jabatan_id=eq.${jabatanId}&order=is_active.desc.nullslast,created_at.desc&limit=1`,
       getToken());
@@ -131,26 +157,19 @@ async function loadSimulasi() {
     template.kpi_sections = (template.kpi_sections||[]).sort((a,b)=>a.urutan-b.urutan);
     template.kpi_sections.forEach(s => s.kpi_indicators=(s.kpi_indicators||[]).sort((a,b)=>a.urutan-b.urutan));
 
-    // Load products + pengkali
     const [prods, rules] = await Promise.all([
       sbGet('products', '?select=*&status=eq.aktif&order=nama', getToken()),
       sbGet('pengkali_rules', '?select=*&order=min_poin.asc', getToken()),
     ]);
-    // Map produk sama persis seperti input-bulk (sharedProducts format)
     products = (prods || []).map(p => ({
-      id: p.id,
-      nama: p.nama,
-      unit: p.unit || 'pcs',
-      tracehold: p.tracehold || 0,
-      target_minimal: p.target_minimal || 0,
-      target_botol: p.target_botol || 0,
-      target_closing: p.target_closing || 0,
+      id: p.id, nama: p.nama, unit: p.unit || 'pcs',
+      tracehold: p.tracehold || 0, target_minimal: p.target_minimal || 0,
+      target_botol: p.target_botol || 0, target_closing: p.target_closing || 0,
     }));
     pengkaliRules = rules || [];
 
-    // Check if template needs per-product indicators
     const perProdTypes = ['caq','botol','closing','retur'];
-    const hasPerProd   = template.kpi_sections.some(s => s.kpi_indicators.some(i => perProdTypes.includes(i.type)));
+    const hasPerProd = template.kpi_sections.some(s => s.kpi_indicators.some(i => perProdTypes.includes(i.type)));
     if (!hasPerProd) products = [];
 
     document.getElementById('simuTitle').textContent    = template.nama;
@@ -165,92 +184,166 @@ async function loadSimulasi() {
 }
 
 function renderSimulasi() {
-  let html = `
-    <div class="sim-row sim-header">
-      <div>Indikator</div>
-      <div style="text-align:center;">Bobot</div>
-      <div style="text-align:right;">Poin Max</div>
-      <div style="text-align:center;">Achieve</div>
-      <div style="text-align:right;">Get Poin</div>
-    </div>`;
+  let head = `<thead>
+    <tr>
+      <th class="s0">NO</th>
+      <th class="s1">ITEM PENILAIAN PERFORMA</th>
+      <th class="s2" style="text-align:center;">BOBOT</th>
+      <th class="s3" style="text-align:center;">POINT TOTAL</th>
+      <th class="s4" style="text-align:center;">POINT ACH</th>
+      <th class="s5" style="text-align:center;">TARGET MINIMAL</th>
+      <th class="s6" style="text-align:center;">UNIT</th>
+      <th style="background:#0891b2;color:#fff;font-weight:700;text-align:center;min-width:80px;">ACHIEVE</th>
+      <th style="background:#0891b2;color:#fff;font-weight:700;text-align:center;min-width:80px;">GET POIN</th>
+    </tr>
+  </thead>`;
+
+  let body = `<tbody>`;
+  let indicatorNo = 0;
 
   template.kpi_sections.forEach(section => {
-    html += `<div class="sim-section">${section.nama}</div>`;
+    body += `<tr class="r-section">
+      <td class="s0"></td>
+      <td class="s1">${section.nama}</td>
+      <td class="s2"></td><td class="s3"></td><td class="s4"></td><td class="s5"></td><td class="s6"></td>
+      <td></td><td></td>
+    </tr>`;
+
     section.kpi_indicators.forEach(ind => {
       const isPerProd = ['caq','botol','closing','retur'].includes(ind.type);
+
       if (isPerProd) {
-        html += `<div class="sim-row" style="background:#f0f9ff;">
-          <div><strong>${ind.nama}</strong> <span class="text-muted text-sm">— per produk</span></div>
-          <div style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</div>
-          <div style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</div>
-          <div></div><div></div>
-        </div>`;
+        indicatorNo++;
+        body += `<tr>
+          <td class="s0" style="text-align:center;">${indicatorNo}</td>
+          <td class="s1"><strong>${ind.nama}</strong></td>
+          <td class="s2" style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</td>
+          <td class="s3" style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</td>
+          <td class="s4" colspan="2" style="text-align:center;font-size:11px;">Handle Produk: ${products.length}</td>
+          <td class="s6"></td>
+          <td></td><td></td>
+        </tr>`;
+
+        if (ind.type === 'caq' && products.length) {
+          body += `<tr class="r-subhdr">
+            <td class="s0"></td><td class="s1"></td><td class="s2"></td><td class="s3"></td>
+            <td class="s4" style="text-align:center;">Tracehold</td>
+            <td class="s5" style="text-align:center;">Target</td>
+            <td class="s6"></td>
+            <td></td><td></td>
+          </tr>`;
+        }
+
         products.forEach(p => {
           const key  = `${ind.id}_${p.id}`;
           const val  = simData[key] || '';
           const poin = calcPoin(ind, val, p);
-          const cls  = poin>0?'sim-pos':poin<0?'sim-neg':'sim-zer';
-          html += `<div class="sim-row prod-row">
-            <div>${p.nama} <span class="text-muted text-sm">(${p.unit||'pcs'})</span></div>
-            <div></div>
-            <div style="text-align:right;font-size:11px;color:var(--gray-400);">${getPoinPerUnit(ind,p)}</div>
-            <div style="text-align:center;"><input class="sim-inp" type="number" min="0" value="${val}" oninput="onSimInput('${key}',this.value)" id="inp_${key}"></div>
-            <div class="sim-poin ${cls}" id="poin_${key}">${poin!==0?poin.toFixed(0):'—'}</div>
-          </div>`;
+          const pCls = poin>0?'poin-pos':poin<0?'poin-neg':'poin-zer';
+          const target = ind.type==='botol' ? p.target_botol
+            : ind.type==='closing' ? p.target_closing
+            : ind.type==='retur' ? p.target_botol
+            : p.target_minimal;
+          const thold = ind.type==='caq' ? (p.tracehold>0?p.tracehold+'%':'—') : '—';
+          const tmin  = target > 0 ? Number(target).toLocaleString('id') : '—';
+          body += `<tr>
+            <td class="s0"></td>
+            <td class="s1" style="padding-left:22px;">${p.nama}</td>
+            <td class="s2"></td><td class="s3"></td>
+            <td class="s4" style="text-align:center;font-size:11px;">${thold}</td>
+            <td class="s5" style="text-align:center;font-size:11px;">${tmin}</td>
+            <td class="s6" style="text-align:center;">${getUnit(ind.type, p.unit)}</td>
+            <td class="cell-inp"><input type="number" min="0" value="${val}" oninput="onSimInput('${key}',this.value)" id="inp_${key}"></td>
+            <td class="cell-poin ${pCls}" id="poin_${key}">${poin!==0?poin.toFixed(0):'0'}</td>
+          </tr>`;
         });
+
       } else if (ind.type === 'retur_bonus') {
         const poin = getReturBonus(ind);
-        const cls  = poin>0?'sim-pos':'sim-zer';
-        html += `<div class="sim-row">
-          <div><span style="color:#6b7280;font-size:12px;">&#8627;</span> ${ind.nama} <span class="badge badge-gray" style="font-size:10px;">auto</span></div>
-          <div style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</div>
-          <div style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</div>
-          <div style="text-align:center;font-size:11px;color:var(--gray-400);">Otomatis</div>
-          <div class="sim-poin ${cls}" id="poin_${ind.id}_">${poin.toFixed(0)}</div>
-        </div>`;
+        const pCls = poin>0?'poin-pos':'poin-zer';
+        body += `<tr>
+          <td class="s0"></td>
+          <td class="s1" style="color:#6b7280;font-size:11px;">↳ Bonus Retur (otomatis jika total retur = 0)</td>
+          <td class="s2" style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</td>
+          <td class="s3" style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</td>
+          <td class="s4" style="text-align:center;font-size:11px;">Auto</td>
+          <td class="s5"></td><td class="s6"></td>
+          <td style="text-align:center;font-size:11px;color:var(--gray-400);">Otomatis</td>
+          <td class="cell-poin ${pCls}" id="poin_${ind.id}_">${poin.toFixed(0)}</td>
+        </tr>`;
+
       } else {
+        indicatorNo++;
         const key  = `${ind.id}_`;
         const val  = simData[key] || '';
         const poin = calcPoin(ind, val, null);
-        const cls  = poin>0?'sim-pos':poin<0?'sim-neg':'sim-zer';
+        const pCls = poin>0?'poin-pos':poin<0?'poin-neg':'poin-zer';
         const hint = getAchHint(ind);
-        html += `<div class="sim-row">
-          <div><strong>${ind.nama}</strong></div>
-          <div style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</div>
-          <div style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</div>
-          <div style="text-align:center;">
+        body += `<tr>
+          <td class="s0" style="text-align:center;">${indicatorNo}</td>
+          <td class="s1"><strong>${ind.nama}</strong></td>
+          <td class="s2" style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</td>
+          <td class="s3" style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</td>
+          <td class="s4" style="text-align:center;font-size:11px;">${hint}</td>
+          <td class="s5" style="text-align:center;">0</td>
+          <td class="s6" style="text-align:center;">${getUnit(ind.type)}</td>
+          <td class="cell-inp">
             ${ind.type==='challenge'
-              ? `<select class="sim-inp" oninput="onSimInput('${key}',this.value)" id="inp_${key}">
+              ? `<select oninput="onSimInput('${key}',this.value)" id="inp_${key}">
                   <option value="0" ${!val||val==0?'selected':''}>0</option>
                   <option value="1" ${val==1?'selected':''}>1</option>
                   <option value="2" ${val==2?'selected':''}>2</option>
                   <option value="3" ${val>=3?'selected':''}>3+</option>
                 </select>`
-              : `<input class="sim-inp" type="number" min="0" value="${val}" placeholder="${hint}" oninput="onSimInput('${key}',this.value)" id="inp_${key}">`}
-          </div>
-          <div class="sim-poin ${cls}" id="poin_${key}">${poin!==0?poin.toFixed(0):'—'}</div>
-        </div>`;
+              : `<input type="number" min="0" value="${val}" placeholder="${hint}" oninput="onSimInput('${key}',this.value)" id="inp_${key}">`}
+          </td>
+          <td class="cell-poin ${pCls}" id="poin_${key}">${poin!==0?poin.toFixed(0):'0'}</td>
+        </tr>`;
       }
     });
   });
 
-  // Summary row
+  // Summary
   const total = calcTotal();
-  html += `<div class="sim-row sim-summary-row">
-    <div>GRAND TOTAL</div>
-    <div style="text-align:center;">100%</div>
-    <div style="text-align:right;">100.000</div>
-    <div></div>
-    <div class="sim-poin ${total>=0?'sim-pos':'sim-neg'}" id="simGrandTotal">${Math.round(total).toLocaleString('id')}</div>
-  </div>`;
+  body += `<tr class="r-summary">
+    <td class="s0"></td>
+    <td class="s1"><strong>GRAND TOTAL</strong></td>
+    <td class="s2" style="text-align:center;">100%</td>
+    <td class="s3" style="text-align:right;">100.000</td>
+    <td class="s4"></td><td class="s5"></td><td class="s6"></td>
+    <td></td>
+    <td class="cell-poin ${total>=0?'poin-pos':'poin-neg'} total-poin" id="simGrandTotal">${Math.round(total).toLocaleString('id')}</td>
+  </tr>`;
 
-  document.getElementById('simuContent').innerHTML = `<div class="sim-wrap"><div class="sim-inner">${html}</div></div>`;
+  body += `</tbody>`;
+
+  document.getElementById('simuContent').innerHTML = `
+    <div class="bulk-wrap">
+      <table class="bulk-tbl" id="simTable">${head}${body}</table>
+    </div>`;
+
+  recalcStickyLeft();
+}
+
+function recalcStickyLeft() {
+  requestAnimationFrame(() => {
+    const table = document.getElementById('simTable');
+    if (!table) return;
+    const headerRow = table.querySelector('thead tr:first-child');
+    if (!headerRow) return;
+    const sClasses = ['s0','s1','s2','s3','s4','s5','s6'];
+    let left = 0;
+    for (const th of headerRow.children) {
+      const sc = [...th.classList].find(c => sClasses.includes(c));
+      if (!sc) break;
+      table.querySelectorAll(`.${sc}`).forEach(el => { el.style.left = left + 'px'; });
+      left += th.offsetWidth;
+    }
+  });
 }
 
 function onSimInput(key, value) {
   simData[key] = value;
 
-  // Find indicator + product
   const [indId, prodId] = key.split('_');
   let ind = null, prod = null;
   template.kpi_sections.forEach(s => s.kpi_indicators.forEach(i => { if (i.id===indId) ind=i; }));
@@ -260,10 +353,9 @@ function onSimInput(key, value) {
     const poin = calcPoin(ind, value, prod);
     const el   = document.getElementById(`poin_${key}`);
     if (el) {
-      el.textContent = poin!==0 ? poin.toFixed(0) : '—';
-      el.className   = `sim-poin ${poin>0?'sim-pos':poin<0?'sim-neg':'sim-zer'}`;
+      el.textContent = poin!==0 ? poin.toFixed(0) : '0';
+      el.className   = `cell-poin ${poin>0?'poin-pos':poin<0?'poin-neg':'poin-zer'}`;
     }
-    // Refresh retur bonus jika ada
     if (ind.type==='retur') refreshReturBonus();
   }
 
@@ -275,7 +367,7 @@ function refreshReturBonus() {
     if (ind.type==='retur_bonus') {
       const p  = getReturBonus(ind);
       const el = document.getElementById(`poin_${ind.id}_`);
-      if (el) { el.textContent = p.toFixed(0); el.className = `sim-poin ${p>0?'sim-pos':'sim-zer'}`; }
+      if (el) { el.textContent = p.toFixed(0); el.className = `cell-poin ${p>0?'poin-pos':'poin-zer'}`; }
     }
   }));
 }
@@ -288,12 +380,12 @@ function updateResult() {
   const { pengkali, bonusKPI, ruleLabel } = calcBonus(total, rules);
 
   const gtEl = document.getElementById('simGrandTotal');
-  if (gtEl) { gtEl.textContent = Math.round(total).toLocaleString('id'); gtEl.className = `sim-poin ${total>=0?'sim-pos':'sim-neg'}`; }
+  if (gtEl) { gtEl.textContent = Math.round(total).toLocaleString('id'); gtEl.className = `cell-poin total-poin ${total>=0?'poin-pos':'poin-neg'}`; }
 
-  document.getElementById('resTotalPoin').textContent    = Math.round(total).toLocaleString('id');
-  document.getElementById('resPengkali').textContent     = pengkali.toFixed(2);
+  document.getElementById('resTotalPoin').textContent     = Math.round(total).toLocaleString('id');
+  document.getElementById('resPengkali').textContent      = pengkali.toFixed(2);
   document.getElementById('resPengkaliLabel').textContent = ruleLabel;
-  document.getElementById('resBonus').textContent        = formatRupiah(bonusKPI);
+  document.getElementById('resBonus').textContent         = formatRupiah(bonusKPI);
 }
 
 function resetAll() {
@@ -359,15 +451,16 @@ function calcBonus(totalPoin, rules) {
 }
 
 function getAchHint(ind) {
-  const map={absensi:'maks hari',keterlambatan:'jml telat',linear:'0–100',sop:'0–100'};
-  return map[ind.type]||'';
+  const map={absensi:'Maks 5 hari',keterlambatan:'0=full poin',linear:'0–100%',sop:'0–100%'};
+  return map[ind.type]||'—';
 }
 
-function getPoinPerUnit(ind, prod) {
-  if (ind.type==='botol')   return prod.target_botol>0   ? `target: ${Number(prod.target_botol).toLocaleString('id')}` : '—';
-  if (ind.type==='closing') return prod.target_closing>0 ? `target: ${Number(prod.target_closing).toLocaleString('id')}` : '—';
-  if (ind.type==='caq')     return prod.tracehold>0      ? `trace: ${prod.tracehold}%` : '—';
-  return '—';
+function getUnit(type, unit) {
+  const map = { absensi:'HARI', keterlambatan:'TELAT', caq:'Presentase (%)',
+    botol: unit||'PCS', closing:'PAKET', linear:'%', challenge:'CHALLENGE/BLN',
+    sop:'%', copyright_video:'per video', copyright_lp:'per LP',
+    copyright_gambar:'per gambar', retur: unit||'PCS' };
+  return map[type] || unit || '—';
 }
 </script>
 </body>
