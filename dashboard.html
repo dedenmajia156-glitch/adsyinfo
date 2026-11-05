@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-subtitle" id="periodLabel">Memuat...</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+
+    <main class="page-content fade-in">
+
+      <!-- Period Selector -->
+      <div class="toolbar" style="margin-bottom:20px;">
+        <div class="toolbar-left">
+          <select class="form-control" id="periodFilter" style="width:180px;" onchange="onPeriodChange()"></select>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon indigo">&#128101;</div>
+          <div class="stat-info">
+            <div class="stat-label">Total Karyawan</div>
+            <div class="stat-value" id="statTotalKaryawan">—</div>
+            <div class="stat-sub" id="statKaryawanSub">aktif</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">&#128200;</div>
+          <div class="stat-info">
+            <div class="stat-label" id="labelKPI">KPI Periode</div>
+            <div class="stat-value" id="statKPICount">—</div>
+            <div class="stat-sub">disubmit</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon yellow">&#11088;</div>
+          <div class="stat-info">
+            <div class="stat-label">Rata-rata Poin</div>
+            <div class="stat-value" id="statAvgPoin">—</div>
+            <div class="stat-sub" id="labelAvgPoin">—</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue">&#128181;</div>
+          <div class="stat-info">
+            <div class="stat-label">Total Payroll</div>
+            <div class="stat-value" id="statTotalPayroll">—</div>
+            <div class="stat-sub" id="labelPayroll">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions (role-based) -->
+      <div id="quickActionsRow" class="card mb-6">
+        <div class="card-body" style="padding:20px 24px;">
+          <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin-bottom:14px;">Aksi Cepat</div>
+          <div class="btn-group" id="quickActions"></div>
+        </div>
+      </div>
+
+      <!-- KPI Table -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Data KPI</div>
+            <div class="card-subtitle" id="kpiTableSubtitle">—</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th>Jabatan</th>
+                <th>Periode</th>
+                <th class="text-right">Total Poin</th>
+                <th>Grade</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="kpiTableBody">
+              <tr class="loading-row"><td colspan="7"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let pengkaliRules = [];
+
+  (async () => {
+    currentEmployee = await requireAuth();
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+    initPeriodFilter();
+    loadQuickActions();
+    try {
+      const data = await sbGet('pengkali_rules', '?select=*&order=min_poin.desc', getToken());
+      if (data) pengkaliRules = data;
+    } catch {}
+    await Promise.all([loadStats(), loadKPITable()]);
+  })();
+
+  function initPeriodFilter() {
+    const sel = document.getElementById('periodFilter');
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = getPeriodLabel(val);
+      if (i === 0) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  function onPeriodChange() {
+    const period = document.getElementById('periodFilter').value;
+    document.getElementById('periodLabel').textContent = getPeriodLabel(period);
+    loadStats();
+    loadKPITable();
+  }
+
+  async function loadStats() {
+    const period = document.getElementById('periodFilter').value;
+    const periodLbl = getPeriodLabel(period);
+    const role = currentEmployee.role;
+    const token = getToken();
+
+    document.getElementById('labelKPI').textContent     = `KPI ${periodLbl}`;
+    document.getElementById('labelAvgPoin').textContent  = periodLbl;
+    document.getElementById('labelPayroll').textContent  = periodLbl;
+
+    try {
+      // Total karyawan
+      if (['hr', 'ceo', 'finance'].includes(role)) {
+        const count = await sbCount('employees', '?status=eq.aktif', token);
+        document.getElementById('statTotalKaryawan').textContent = count ?? '—';
+        document.getElementById('statKaryawanSub').textContent = 'karyawan aktif';
+      } else {
+        document.getElementById('statTotalKaryawan').textContent = currentEmployee.nama.split(' ')[0];
+        document.getElementById('statKaryawanSub').textContent = currentEmployee.jabatan?.nama || '—';
+      }
+
+      // KPI bulan ini
+      let kpiQuery = `?select=id,total_poin&period=eq.${period}`;
+      if (role === 'karyawan') kpiQuery += `&employee_id=eq.${currentEmployee.id}`;
+      const kpiData = await sbGet('kpi_periods', kpiQuery, token);
+      document.getElementById('statKPICount').textContent = kpiData ? kpiData.length : 0;
+
+      // Rata-rata poin
+      if (kpiData && kpiData.length > 0) {
+        const avg = kpiData.reduce((s, r) => s + (Number(r.total_poin) || 0), 0) / kpiData.length;
+        document.getElementById('statAvgPoin').textContent = Math.round(avg).toLocaleString('id');
+      } else {
+        document.getElementById('statAvgPoin').textContent = '0';
+      }
+
+      // Total payroll
+      if (['finance', 'ceo'].includes(role)) {
+        const plData = await sbGet('payroll', `?select=net_gaji&period=eq.${period}`, token);
+        const total = plData ? plData.reduce((s, r) => s + (Number(r.net_gaji) || 0), 0) : 0;
+        document.getElementById('statTotalPayroll').textContent = formatRupiah(total);
+      } else {
+        const ownPLArr = await sbGet('payroll', `?select=net_gaji&period=eq.${period}&employee_id=eq.${currentEmployee.id}&limit=1`, token);
+        const ownPL = ownPLArr?.[0] || null;
+        document.getElementById('statTotalPayroll').textContent = ownPL ? formatRupiah(ownPL.net_gaji) : 'Rp 0';
+      }
+    } catch (err) {
+      console.error('Stats error:', err);
+    }
+  }
+
+  async function loadKPITable() {
+    const period = document.getElementById('periodFilter').value;
+    const periodLbl = getPeriodLabel(period);
+    document.getElementById('kpiTableSubtitle').textContent = `Periode ${periodLbl}`;
+    const tbody = document.getElementById('kpiTableBody');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="7"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>';
+    const token = getToken();
+
+    try {
+      let query = `?select=id,period,total_poin,status,submitted_at,employees!kpi_periods_employee_id_fkey(nama,jabatan(nama))&period=eq.${period}&order=submitted_at.desc&limit=20`;
+      if (currentEmployee.role === 'karyawan') {
+        query += `&employee_id=eq.${currentEmployee.id}`;
+      }
+
+      const data = await sbGet('kpi_periods', query, token);
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted" style="padding:40px;">Belum ada data KPI untuk periode ini.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(row => {
+        const poin = Number(row.total_poin) || 0;
+        const grade = KPICalc_getGrade(poin);
+        const statusBadge = {
+          draft: '<span class="badge badge-gray">Draft</span>',
+          submitted: '<span class="badge badge-blue">Submitted</span>',
+          approved: '<span class="badge badge-green">Approved</span>'
+        }[row.status] || '<span class="badge badge-gray">—</span>';
+
+        const poinClass = poin >= 75000 ? 'kpi-poin-positive' : poin < 45000 ? 'kpi-poin-negative' : '';
+
+        return `
+          <tr>
+            <td><strong>${row.employees?.nama || '—'}</strong></td>
+            <td><span class="text-sm">${row.employees?.jabatan?.nama || '—'}</span></td>
+            <td>${getPeriodLabel(row.period)}</td>
+            <td class="text-right"><span class="${poinClass} font-bold">${poin.toLocaleString('id')}</span></td>
+            <td>${grade}</td>
+            <td>${statusBadge}</td>
+            <td>
+              <a href="/kpi/view.html?period=${row.period}" class="btn btn-sm btn-secondary">Detail</a>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error(err);
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding:40px;">Gagal memuat data: ${err.message}</td></tr>`;
+    }
+  }
+
+  function KPICalc_getGrade(poin) {
+    if (pengkaliRules.length === 0) return '—';
+    const rule = pengkaliRules.find(r => poin >= r.min_poin && poin <= r.max_poin);
+    return rule ? `<span class="badge ${poin >= 90000 ? 'badge-green' : poin >= 60000 ? 'badge-yellow' : 'badge-red'}">${rule.label}</span>` : '—';
+  }
+
+  function loadQuickActions() {
+    const role = currentEmployee.role;
+    const actions = [];
+
+    if (['karyawan', 'hr', 'finance', 'ceo'].includes(role)) {
+      actions.push(`<a href="/kpi/view.html" class="btn btn-primary">&#128200; KPI Saya</a>`);
+    }
+    if (['hr', 'ceo'].includes(role)) {
+      actions.push(`<a href="/kpi/input.html" class="btn btn-secondary">&#9998; Input KPI</a>`);
+      actions.push(`<a href="/kpi/template.html" class="btn btn-secondary">&#9889; Template KPI</a>`);
+      actions.push(`<a href="/admin/employees.html" class="btn btn-secondary">&#128101; Karyawan</a>`);
+      actions.push(`<a href="/admin/products.html" class="btn btn-secondary">&#128230; Produk</a>`);
+    }
+    if (['finance', 'ceo'].includes(role)) {
+      actions.push(`<a href="/payroll/index.html" class="btn btn-secondary">&#128181; Payroll</a>`);
+      actions.push(`<a href="/admin/settings.html" class="btn btn-secondary">&#9881; Pengaturan</a>`);
+    }
+
+    document.getElementById('quickActions').innerHTML = actions.join('');
+  }
+</script>
+</body>
+</html>

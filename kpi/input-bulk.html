@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Input KPI Massal — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <style>
+    .bulk-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+    .bulk-tbl { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+    .bulk-tbl th, .bulk-tbl td { border: 1px solid #d1d5db; padding: 5px 8px; }
+
+    /* Sticky left columns — left position dihitung ulang JS setelah render */
+    .s0,.s1,.s2,.s3,.s4,.s5,.s6 { position:sticky; z-index:3; background:#fff; }
+    .s0 { left:0;    min-width:32px; }
+    .s1 { left:32px; min-width:160px; }
+    .s2 { min-width:60px; }
+    .s3 { min-width:60px; }
+    .s4 { min-width:60px; }
+    .s5 { min-width:60px; }
+    .s6 { min-width:90px; border-right:2px solid #9ca3af !important; }
+
+    /* Header sticky */
+    .bulk-tbl thead .s0,.bulk-tbl thead .s1,.bulk-tbl thead .s2,
+    .bulk-tbl thead .s3,.bulk-tbl thead .s4,.bulk-tbl thead .s5,.bulk-tbl thead .s6 {
+      background:#0891b2; color:#fff; font-weight:700; text-align:center; z-index:5;
+    }
+
+    /* Employee header — warna diset inline via JS */
+    .emp-name-th  { color:#fff; font-weight:700; text-align:center; min-width:160px; }
+    .emp-col-th   { font-weight:600; text-align:center; font-size:11px; min-width:80px; }
+
+    /* Row types */
+    .r-section td,
+    .r-section .s0,.r-section .s1,.r-section .s2,
+    .r-section .s3,.r-section .s4,.r-section .s5,.r-section .s6 {
+      background:#fef08a !important; font-weight:800; color:#374151;
+    }
+    .r-subhdr td,
+    .r-subhdr .s0,.r-subhdr .s1,.r-subhdr .s2,
+    .r-subhdr .s3,.r-subhdr .s4,.r-subhdr .s5,.r-subhdr .s6 {
+      background:#fef9c3 !important; font-weight:600; font-size:11px; color:#6b7280;
+    }
+    .r-summary td,
+    .r-summary .s0,.r-summary .s1,.r-summary .s2,
+    .r-summary .s3,.r-summary .s4,.r-summary .s5,.r-summary .s6 {
+      background:#fef3c7 !important; font-weight:800; border-top:2px solid #374151;
+    }
+
+    .cell-inp input, .cell-inp select {
+      width:72px; padding:2px 4px; text-align:center;
+      border:1px solid #93c5fd; border-radius:3px; font-size:12px;
+    }
+    .cell-poin { text-align:right; font-weight:700; font-size:12px; min-width:72px; }
+    .poin-pos  { color:#15803d; background:#dcfce7; }
+    .poin-neg  { color:#b91c1c; background:#fee2e2; }
+    .poin-zer  { color:#9ca3af; }
+    .total-poin { font-size:13px; font-weight:900; }
+
+    .odd-bg { background:#fff7ed; }
+  </style>
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+  <script src="/js/kpi-calc.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div>
+          <div class="page-title">Input KPI Massal</div>
+          <div class="page-subtitle">Input penilaian semua karyawan sekaligus dalam satu tabel</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <!-- Setup -->
+      <div class="card mb-6" id="setupCard">
+        <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleSetup()">
+          <div class="card-title">Pilih Periode & Jabatan</div>
+          <span id="setupToggleIcon" style="font-size:18px;color:var(--text-muted);">&#8964;</span>
+        </div>
+        <div id="setupBody" class="card-body">
+          <div class="form-row-3">
+            <div class="form-group">
+              <label class="form-label">Periode <span class="required">*</span></label>
+              <input type="month" class="form-control" id="periodInput">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Jabatan <span class="required">*</span></label>
+              <select class="form-control" id="jabatanSelect">
+                <option value="">— Pilih Jabatan —</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <button class="btn btn-primary" onclick="event.stopPropagation();loadBulkData()">Load Data</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pilih produk -->
+      <div class="card mb-6" id="productPickerCard" style="display:none;">
+        <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleProductPicker()">
+          <div class="card-title">Pilih Produk</div>
+          <span id="productPickerIcon" style="font-size:18px;color:var(--text-muted);">&#8964;</span>
+        </div>
+        <div id="productPickerBody" class="card-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;" id="productCheckboxList"></div>
+          <div style="margin-top:10px;display:flex;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="setAllProducts(true)">Pilih Semua</button>
+            <button class="btn btn-sm btn-secondary" onclick="setAllProducts(false)">Hapus Semua</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info produk yang dipakai -->
+      <div class="alert alert-info mb-6" id="productInfo" style="display:none;"></div>
+
+      <!-- Bulk Table -->
+      <div id="bulkTableCard" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <strong id="bulkTitle">KPI Massal</strong>
+            <span class="text-muted text-sm" id="bulkSubtitle" style="margin-left:8px;"></span>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="saveAll('draft')">&#128190; Simpan Draft</button>
+            <button class="btn btn-primary" onclick="saveAll('submitted')">&#128228; Submit Semua</button>
+          </div>
+        </div>
+        <div class="bulk-wrap">
+          <table class="bulk-tbl" id="bulkTable"></table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+
+<script>
+let currentEmployee = null;
+let jabatanList   = [];
+let allProducts   = [];
+let pengkaliRules = [];
+let template      = null;
+let employees     = [];
+let sharedProducts = []; // { product_id, nama, unit, tracehold, target_minimal, target_botol, target_closing }
+let achieveData    = {}; // `${empId}_${indId}_${prodId||''}` -> value
+
+(async () => {
+  currentEmployee = await requireRole(['hr', 'ceo']);
+  if (!currentEmployee) return;
+  initSidebar(currentEmployee);
+  const now = new Date();
+  document.getElementById('periodInput').value =
+    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  await Promise.all([loadJabatan(), loadAllProducts(), loadPengkali()]);
+})();
+
+async function loadJabatan() {
+  try {
+    const data = await sbGet('jabatan', '?select=id,nama,divisions(nama)&order=nama', getToken());
+    jabatanList = data || [];
+    const sel = document.getElementById('jabatanSelect');
+    jabatanList.forEach(j => sel.add(new Option(`${j.nama} (${j.divisions?.nama||'-'})`, j.id)));
+  } catch {}
+}
+
+async function loadAllProducts() {
+  try {
+    allProducts = await sbGet('products', '?select=*&status=eq.aktif&order=nama', getToken()) || [];
+  } catch {}
+}
+
+async function loadPengkali() {
+  try { pengkaliRules = await sbGet('pengkali_rules', '?select=*&order=min_poin.desc', getToken()) || []; } catch {}
+}
+
+async function loadBulkData() {
+  const jabatanId = document.getElementById('jabatanSelect').value;
+  const period    = document.getElementById('periodInput').value;
+  if (!jabatanId || !period) { showToast('Pilih jabatan dan periode.', 'error'); return; }
+
+  showLoading(true);
+  try {
+    // Load template
+    const tmplArr = await sbGet('kpi_templates',
+      `?select=id,nama,jabatan(nama,divisions(nama)),kpi_sections(id,nama,type,urutan,kpi_indicators(id,nama,type,bobot,point_total,config,urutan))&jabatan_id=eq.${jabatanId}&is_active=eq.true&limit=1`,
+      getToken());
+    template = tmplArr?.[0];
+    if (!template) { showToast('Tidak ada template KPI aktif untuk jabatan ini.', 'error'); showLoading(false); return; }
+
+    template.kpi_sections = (template.kpi_sections||[]).sort((a,b)=>a.urutan-b.urutan);
+    template.kpi_sections.forEach(s => {
+      s.kpi_indicators = (s.kpi_indicators||[]).sort((a,b)=>a.urutan-b.urutan);
+    });
+
+    // Load employees
+    const empData = await sbGet('employees',
+      `?select=id,nama,gaji_pokok&jabatan_id=eq.${jabatanId}&status=eq.aktif&order=nama`, getToken());
+    employees = empData || [];
+    if (!employees.length) { showToast('Tidak ada karyawan aktif di jabatan ini.', 'warning'); showLoading(false); return; }
+
+    // Cek apakah template punya indikator per-produk
+    const perProdTypes = ['caq','botol','closing','retur'];
+    const hasPerProd = template.kpi_sections.some(s =>
+      s.kpi_indicators.some(i => perProdTypes.includes(i.type))
+    );
+
+    // Auto-load products dari master hanya jika ada indikator per-produk
+    if (hasPerProd) {
+      sharedProducts = allProducts.map(p => ({
+        product_id: p.id,
+        nama: p.nama,
+        unit: p.unit || 'pcs',
+        tracehold: p.tracehold || 0,
+        target_minimal: p.target_minimal || 0,
+        target_botol: p.target_botol || 0,
+        target_closing: p.target_closing || 0,
+      }));
+      renderProductPicker();
+      document.getElementById('productPickerCard').style.display = '';
+      document.getElementById('productPickerBody').style.display = 'none';
+      document.getElementById('productPickerIcon').innerHTML = '&#8963;';
+    } else {
+      sharedProducts = [];
+      document.getElementById('productPickerCard').style.display = 'none';
+    }
+
+    // Load existing achieve data for all employees
+    achieveData = {};
+    for (const emp of employees) {
+      const kpiArr = await sbGet('kpi_periods',
+        `?select=id,status&employee_id=eq.${emp.id}&period=eq.${period}&limit=1`, getToken());
+      const kpi = kpiArr?.[0];
+      if (kpi) {
+        emp._kpiPeriodId = kpi.id;
+        const records = await sbGet('kpi_records', `?select=*&kpi_period_id=eq.${kpi.id}`, getToken()) || [];
+        records.forEach(r => {
+          const key = `${emp.id}_${r.indicator_id}_${r.product_id||''}`;
+          achieveData[key] = r.achieve;
+        });
+      }
+    }
+
+    document.getElementById('bulkTitle').textContent =
+      `KPI ${template.jabatan?.nama||''} — ${getPeriodLabel(period)}`;
+    document.getElementById('bulkSubtitle').textContent = `${employees.length} karyawan`;
+
+    updateProductInfo();
+
+    renderBulkTable();
+    document.getElementById('bulkTableCard').style.display = '';
+    // Collapse setup card setelah load
+    document.getElementById('setupBody').style.display = 'none';
+    document.getElementById('setupToggleIcon').innerHTML = '&#8963;';
+
+  } catch(err) { showToast('Error: ' + err.message, 'error'); }
+  showLoading(false);
+}
+
+/* ===== Employee colors ===== */
+const EMP_COLORS = [
+  '#0891b2','#f97316','#7c3aed','#059669',
+  '#e11d48','#d97706','#2563eb','#db2777',
+  '#0d9488','#ea580c','#9333ea','#16a34a',
+];
+const EMP_COLORS_LIGHT = [
+  '#e0f2fe','#fff7ed','#f3e8ff','#dcfce7',
+  '#ffe4e6','#fef3c7','#dbeafe','#fce7f3',
+  '#ccfbf1','#ffedd5','#f5f3ff','#dcfce7',
+];
+function empColor(i)      { return EMP_COLORS[i % EMP_COLORS.length]; }
+function empColorLight(i) { return EMP_COLORS_LIGHT[i % EMP_COLORS_LIGHT.length]; }
+
+/* ===== Recalculate sticky left positions ===== */
+function recalcStickyLeft() {
+  requestAnimationFrame(() => {
+    const table = document.getElementById('bulkTable');
+    if (!table) return;
+    const headerRow = table.querySelector('thead tr:first-child');
+    if (!headerRow) return;
+    const sClasses = ['s0','s1','s2','s3','s4','s5','s6'];
+    let left = 0;
+    for (const th of headerRow.children) {
+      const sc = [...th.classList].find(c => sClasses.includes(c));
+      if (!sc) break;
+      table.querySelectorAll(`.${sc}`).forEach(el => { el.style.left = left + 'px'; });
+      left += th.offsetWidth;
+    }
+  });
+}
+
+/* ===== Product picker ===== */
+function renderProductPicker() {
+  const list = document.getElementById('productCheckboxList');
+  list.innerHTML = allProducts.map(p => `
+    <label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;background:var(--surface);">
+      <input type="checkbox" value="${p.id}" checked onchange="onProductCheck()" style="width:15px;height:15px;cursor:pointer;">
+      ${p.nama}
+    </label>`).join('');
+}
+
+function onProductCheck() {
+  const checked = [...document.querySelectorAll('#productCheckboxList input:checked')].map(el => el.value);
+  sharedProducts = allProducts
+    .filter(p => checked.includes(p.id))
+    .map(p => ({
+      product_id: p.id,
+      nama: p.nama,
+      unit: p.unit || 'pcs',
+      tracehold: p.tracehold || 0,
+      target_minimal: p.target_minimal || 0,
+      target_botol: p.target_botol || 0,
+      target_closing: p.target_closing || 0,
+    }));
+  updateProductInfo();
+  renderBulkTable();
+}
+
+function setAllProducts(check) {
+  document.querySelectorAll('#productCheckboxList input').forEach(el => el.checked = check);
+  onProductCheck();
+}
+
+function updateProductInfo() {
+  const infoEl = document.getElementById('productInfo');
+  if (!sharedProducts.length) {
+    infoEl.style.display = 'none';
+    return;
+  }
+  infoEl.innerHTML = `<strong>Produk dipilih (${sharedProducts.length}):</strong> ${sharedProducts.map(p => p.nama).join(', ')}`;
+  infoEl.style.display = '';
+}
+
+function toggleProductPicker() {
+  const body = document.getElementById('productPickerBody');
+  const icon = document.getElementById('productPickerIcon');
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  icon.innerHTML = isHidden ? '&#8964;' : '&#8963;';
+}
+
+/* ===== Setup toggle ===== */
+function toggleSetup() {
+  const body = document.getElementById('setupBody');
+  const icon = document.getElementById('setupToggleIcon');
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  icon.innerHTML = isHidden ? '&#8964;' : '&#8963;';
+}
+
+/* ===== Build rows ===== */
+function buildRows() {
+  const rows = [];
+  if (!template) return rows;
+  template.kpi_sections.forEach(section => {
+    rows.push({ type:'section', section });
+    section.kpi_indicators.forEach(ind => {
+      const isPerProd = ['caq','botol','closing','retur'].includes(ind.type);
+      if (isPerProd) {
+        rows.push({ type:'prod_header', ind });
+        if (ind.type === 'caq' && sharedProducts.length) rows.push({ type:'prod_subhdr' });
+        sharedProducts.forEach(sp => rows.push({ type:'product_row', ind, sp }));
+      } else if (ind.type === 'retur_bonus') {
+        rows.push({ type:'retur_bonus', ind });
+      } else {
+        rows.push({ type:'indicator', ind });
+      }
+    });
+  });
+  rows.push({ type:'summary' });
+  return rows;
+}
+
+/* ===== Render table ===== */
+function renderBulkTable() {
+  const rows = buildRows();
+  let indicatorNo = 0;
+
+  /* ---- HEAD ---- */
+  let head = `<thead>
+    <tr>
+      <th class="s0" rowspan="2">NO</th>
+      <th class="s1" rowspan="2">ITEM PENILAIAN PERFORMA</th>
+      <th class="s2" rowspan="2">BOBOT</th>
+      <th class="s3" rowspan="2">POINT TOTAL</th>
+      <th class="s4" rowspan="2">POINT ACH</th>
+      <th class="s5" rowspan="2">TARGET MINIMAL</th>
+      <th class="s6" rowspan="2">UNIT</th>
+      ${employees.map((emp,i) => `<th colspan="2" class="emp-name-th" style="background:${empColor(i)};">${emp.nama}</th>`).join('')}
+    </tr>
+    <tr>
+      ${employees.map((_,i) => `
+        <th class="emp-col-th" style="background:${empColorLight(i)};">ACHIEVE</th>
+        <th class="emp-col-th" style="background:${empColorLight(i)};">GET POIN</th>`).join('')}
+    </tr>
+  </thead>`;
+
+  /* ---- BODY ---- */
+  let body = `<tbody>`;
+
+  rows.forEach(row => {
+    const empCols = (extra='') => employees.map((_,i) => `<td${i%2===1?' class="odd-bg"':''}></td><td${i%2===1?' class="odd-bg"':''}></td>`).join('');
+
+    if (row.type === 'section') {
+      body += `<tr class="r-section">
+        <td class="s0"></td>
+        <td class="s1">${row.section.nama}</td>
+        <td class="s2"></td><td class="s3"></td><td class="s4"></td><td class="s5"></td><td class="s6"></td>
+        ${empCols()}
+      </tr>`;
+
+    } else if (row.type === 'indicator') {
+      indicatorNo++;
+      const ind = row.ind;
+      body += `<tr>
+        <td class="s0" style="text-align:center;">${indicatorNo}</td>
+        <td class="s1"><strong>${ind.nama}</strong></td>
+        <td class="s2" style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</td>
+        <td class="s3" style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</td>
+        <td class="s4" style="text-align:center;font-size:11px;">${getAchHint(ind)}</td>
+        <td class="s5" style="text-align:center;">0</td>
+        <td class="s6" style="text-align:center;">${getUnit(ind.type)}</td>
+        ${employees.map((emp,i) => renderEmpCell(emp, ind, null, i)).join('')}
+      </tr>`;
+
+    } else if (row.type === 'prod_header') {
+      indicatorNo++;
+      const ind = row.ind;
+      body += `<tr>
+        <td class="s0" style="text-align:center;">${indicatorNo}</td>
+        <td class="s1"><strong>${ind.nama}</strong></td>
+        <td class="s2" style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</td>
+        <td class="s3" style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</td>
+        <td class="s4" colspan="2" style="text-align:center;font-size:11px;">Handle Produk: ${sharedProducts.length}</td>
+        <td class="s6"></td>
+        ${empCols()}
+      </tr>`;
+
+    } else if (row.type === 'prod_subhdr') {
+      body += `<tr class="r-subhdr">
+        <td class="s0"></td><td class="s1"></td><td class="s2"></td><td class="s3"></td>
+        <td class="s4" style="text-align:center;">Tracehold</td>
+        <td class="s5" style="text-align:center;">Target</td>
+        <td class="s6"></td>
+        ${empCols()}
+      </tr>`;
+
+    } else if (row.type === 'product_row') {
+      const { ind, sp } = row;
+      const target = ind.type==='botol' ? sp.target_botol
+        : ind.type==='closing' ? sp.target_closing
+        : ind.type==='retur' ? sp.target_botol
+        : sp.target_minimal;
+      const rate = target > 0 ? (ind.point_total / target) : 0;
+      const rateStr = target > 0 ? `${rate % 1 === 0 ? rate.toLocaleString('id') : rate.toFixed(2)} poin/unit` : '—';
+      const thold = ind.type==='caq' ? (sp.tracehold>0?sp.tracehold+'%':'—') : rateStr;
+      const tmin  = ind.type==='caq' ? (sp.target_minimal>0?sp.target_minimal+'%':'—')
+        : ind.type==='botol' ? (sp.target_botol>0?sp.target_botol.toLocaleString('id'):'—')
+        : ind.type==='closing' ? (sp.target_closing>0?sp.target_closing.toLocaleString('id'):'—')
+        : ind.type==='retur' ? (sp.target_botol>0?sp.target_botol.toLocaleString('id'):'—')
+        : '—';
+      body += `<tr>
+        <td class="s0"></td>
+        <td class="s1" style="padding-left:22px;">${sp.nama}</td>
+        <td class="s2"></td><td class="s3"></td>
+        <td class="s4" style="text-align:center;font-size:11px;">${thold}</td>
+        <td class="s5" style="text-align:center;font-size:11px;">${tmin}</td>
+        <td class="s6" style="text-align:center;">${getUnit(ind.type, sp.unit)}</td>
+        ${employees.map((emp,i) => renderEmpCell(emp, ind, sp, i)).join('')}
+      </tr>`;
+
+    } else if (row.type === 'retur_bonus') {
+      const ind = row.ind;
+      body += `<tr>
+        <td class="s0"></td>
+        <td class="s1" style="color:#6b7280;font-size:11px;">↳ Bonus Retur (otomatis jika total retur = 0)</td>
+        <td class="s2" style="text-align:center;">${Number(ind.bobot).toFixed(1)}%</td>
+        <td class="s3" style="text-align:right;">${Number(ind.point_total).toLocaleString('id')}</td>
+        <td class="s4" style="text-align:center;font-size:11px;">Auto</td>
+        <td class="s5"></td><td class="s6"></td>
+        ${employees.map((emp,i) => {
+          const poin = getReturBonusPoin(emp.id, ind);
+          const cls  = poin>0?'poin-pos':'poin-zer';
+          return `<td${i%2===1?' class="odd-bg"':''}></td>
+                  <td class="cell-poin ${cls}${i%2===1?' odd-bg':''}" id="poin_${emp.id}_${ind.id}_">${poin.toFixed(0)}</td>`;
+        }).join('')}
+      </tr>`;
+
+    } else if (row.type === 'summary') {
+      body += `<tr class="r-summary">
+        <td class="s0"></td>
+        <td class="s1"><strong>GRAND TOTAL</strong></td>
+        <td class="s2" style="text-align:center;">100%</td>
+        <td class="s3" style="text-align:right;">100.000</td>
+        <td class="s4"></td><td class="s5"></td><td class="s6"></td>
+        ${employees.map((emp,i) => {
+          const total = calcEmpTotal(emp.id);
+          const cls   = total>=0 ? 'poin-pos' : 'poin-neg';
+          return `<td${i%2===1?' class="odd-bg"':''}></td>
+                  <td class="cell-poin ${cls} total-poin" id="total_${emp.id}">${Math.round(total).toLocaleString('id')}</td>`;
+        }).join('')}
+      </tr>`;
+    }
+  });
+
+  body += `</tbody>`;
+  document.getElementById('bulkTable').innerHTML = head + body;
+  recalcStickyLeft();
+}
+
+function renderEmpCell(emp, ind, sp, empIdx) {
+  const prodId = sp ? sp.product_id : '';
+  const key    = `${emp.id}_${ind.id}_${prodId}`;
+  const val    = achieveData[key] !== undefined ? achieveData[key] : '';
+  const poin   = calcPoin(ind, val, sp);
+  const pCls   = poin>0?'poin-pos':poin<0?'poin-neg':'poin-zer';
+  const bgOdd  = empIdx%2===1 ? ' class="odd-bg"' : '';
+
+  let input;
+  if (ind.type === 'challenge') {
+    input = `<select id="inp_${key}" onchange="onAchieve('${emp.id}','${ind.id}','${prodId}')" style="width:72px;font-size:11px;padding:2px;border:1px solid #93c5fd;border-radius:3px;">
+      <option value="0" ${val==0||val===''?'selected':''}>0</option>
+      <option value="1" ${val==1?'selected':''}>1</option>
+      <option value="2" ${val==2?'selected':''}>2</option>
+      <option value="3" ${val>=3?'selected':''}>3+</option>
+    </select>`;
+  } else {
+    input = `<input type="number" id="inp_${key}" value="${val}" min="0" onchange="onAchieve('${emp.id}','${ind.id}','${prodId}')" style="width:72px;padding:2px 4px;text-align:center;border:1px solid #93c5fd;border-radius:3px;font-size:12px;">`;
+  }
+
+  return `<td class="cell-inp"${bgOdd}>${input}</td>
+          <td class="cell-poin ${pCls}"${bgOdd} id="poin_${key}">${poin!==0?poin.toFixed(0):'0'}</td>`;
+}
+
+/* ===== Calculations ===== */
+function calcPoin(ind, achieve, sp) {
+  if (achieve===''||achieve===null||achieve===undefined) return 0;
+  const a = Number(achieve);
+  const n = sharedProducts.length || 1;
+  switch (ind.type) {
+    case 'absensi': {
+      const ppu = ind.config?.point_per_unit || (ind.point_total/30);
+      return KPICalc.calcAbsensi(a, ind.point_total, ppu, 5);
+    }
+    case 'keterlambatan': return KPICalc.calcKeterlambatan(a, ind.point_total);
+    case 'caq':  return sp ? KPICalc.calcCAQ(a, sp.tracehold, sp.target_minimal, ind.point_total, n) : 0;
+    case 'botol':   return KPICalc.calcBotol(a, sp?.target_botol||1, ind.point_total);
+    case 'closing': return KPICalc.calcClosing(a, sp?.target_closing||1, ind.point_total);
+    case 'linear':  return KPICalc.calcLinear(a, 100, ind.point_total);
+    case 'challenge': return KPICalc.calcChallenge(a, ind.point_total);
+    case 'sop': return KPICalc.calcSOP(a/100, ind.point_total, ind.config?.threshold||0.70);
+    case 'copyright_video':
+    case 'copyright_lp':
+    case 'copyright_gambar': return KPICalc.calcCopyright(a, ind.config?.penalty_per_unit||0);
+    case 'retur': return sp ? KPICalc.calcRetur(a, 0, sp.target_botol||sp.target_closing||0, ind.point_total, n) : 0;
+    default: return 0;
+  }
+}
+
+function getReturBonusPoin(empId, ind) {
+  let hasRetur = false;
+  template?.kpi_sections.forEach(s => {
+    s.kpi_indicators.forEach(i => {
+      if (i.type === 'retur') {
+        sharedProducts.forEach(sp => {
+          if (Number(achieveData[`${empId}_${i.id}_${sp.product_id}`]||0) > 0) hasRetur = true;
+        });
+      }
+    });
+  });
+  return hasRetur ? 0 : Number(ind.point_total);
+}
+
+function calcEmpTotal(empId) {
+  if (!template) return 0;
+  let total = 0;
+  template.kpi_sections.forEach(s => {
+    s.kpi_indicators.forEach(ind => {
+      const isPerProd = ['caq','botol','closing','retur'].includes(ind.type);
+      if (isPerProd) {
+        sharedProducts.forEach(sp => {
+          total += calcPoin(ind, achieveData[`${empId}_${ind.id}_${sp.product_id}`]||0, sp);
+        });
+      } else if (ind.type === 'retur_bonus') {
+        total += getReturBonusPoin(empId, ind);
+      } else {
+        total += calcPoin(ind, achieveData[`${empId}_${ind.id}_`]||0, null);
+      }
+    });
+  });
+  return total;
+}
+
+/* ===== On input change ===== */
+function onAchieve(empId, indId, prodId) {
+  const key = `${empId}_${indId}_${prodId}`;
+  achieveData[key] = document.getElementById(`inp_${key}`)?.value || '';
+
+  let ind=null, sp=null;
+  template?.kpi_sections.forEach(s => s.kpi_indicators.forEach(i => { if(i.id===indId) ind=i; }));
+  if (prodId) sp = sharedProducts.find(p => p.product_id === prodId);
+
+  if (ind) {
+    const poin = calcPoin(ind, achieveData[key], sp);
+    const el   = document.getElementById(`poin_${key}`);
+    if (el) { el.textContent = poin.toFixed(0); el.className = `cell-poin ${poin>0?'poin-pos':poin<0?'poin-neg':'poin-zer'}`; }
+
+    // Refresh retur bonus
+    if (ind.type === 'retur') {
+      template.kpi_sections.forEach(s => s.kpi_indicators.forEach(i => {
+        if (i.type === 'retur_bonus') {
+          const p  = getReturBonusPoin(empId, i);
+          const el = document.getElementById(`poin_${empId}_${i.id}_`);
+          if (el) { el.textContent = p.toFixed(0); el.className = `cell-poin ${p>0?'poin-pos':'poin-zer'}`; }
+        }
+      }));
+    }
+  }
+
+  // Refresh total
+  const total = calcEmpTotal(empId);
+  const tel   = document.getElementById(`total_${empId}`);
+  if (tel) {
+    tel.textContent = Math.round(total).toLocaleString('id');
+    tel.className   = `cell-poin ${total>=0?'poin-pos':'poin-neg'} total-poin`;
+  }
+}
+
+/* ===== Save All ===== */
+async function saveAll(status) {
+  const period = document.getElementById('periodInput').value;
+  if (!template || !employees.length) { showToast('Data belum dimuat.', 'error'); return; }
+
+  showLoading(true);
+  let ok=0, fail=0;
+
+  for (const emp of employees) {
+    try {
+      const records = [];
+      let grandTotal = 0;
+
+      template.kpi_sections.forEach(s => {
+        s.kpi_indicators.forEach(ind => {
+          const isPerProd = ['caq','botol','closing','retur'].includes(ind.type);
+          if (isPerProd) {
+            sharedProducts.forEach(sp => {
+              const val  = Number(achieveData[`${emp.id}_${ind.id}_${sp.product_id}`]||0);
+              const poin = calcPoin(ind, val, sp);
+              grandTotal += poin;
+              records.push({ indicator_id:ind.id, product_id:sp.product_id, achieve:val, poin_get:poin });
+            });
+          } else if (ind.type === 'retur_bonus') {
+            const poin = getReturBonusPoin(emp.id, ind);
+            grandTotal += poin;
+            records.push({ indicator_id:ind.id, product_id:null, achieve:0, poin_get:poin });
+          } else {
+            const val  = Number(achieveData[`${emp.id}_${ind.id}_`]||0);
+            const poin = calcPoin(ind, val, null);
+            grandTotal += poin;
+            records.push({ indicator_id:ind.id, product_id:null, achieve:val, poin_get:poin });
+          }
+        });
+      });
+
+      // Upsert kpi_period
+      const pd = { employee_id:emp.id, period, template_id:template.id,
+                   total_poin:grandTotal, status,
+                   submitted_at: status==='submitted' ? new Date().toISOString() : null };
+      let periodId = emp._kpiPeriodId;
+      if (periodId) {
+        await sbPatch('kpi_periods', `?id=eq.${periodId}`, pd, getToken());
+      } else {
+        const np = await sbPost('kpi_periods', pd, getToken());
+        periodId = (Array.isArray(np)?np[0]:np).id;
+        emp._kpiPeriodId = periodId;
+      }
+
+      // Upsert employee_products
+      for (const sp of sharedProducts) {
+        const epd = { employee_id:emp.id, product_id:sp.product_id, period,
+                      tracehold:sp.tracehold, target_minimal:sp.target_minimal };
+        const ex = await sbGet('employee_products',
+          `?employee_id=eq.${emp.id}&product_id=eq.${sp.product_id}&period=eq.${period}&limit=1`, getToken());
+        if (ex?.[0]) await sbPatch('employee_products', `?id=eq.${ex[0].id}`, epd, getToken());
+        else await sbPost('employee_products', epd, getToken());
+      }
+
+      // Replace records
+      await sbDelete('kpi_records', `?kpi_period_id=eq.${periodId}`, getToken());
+      if (records.length) await sbPost('kpi_records', records.map(r=>({...r, kpi_period_id:periodId})), getToken());
+
+      ok++;
+    } catch(e) { fail++; console.error(emp.nama, e); }
+  }
+
+  showLoading(false);
+  showToast(fail===0
+    ? `KPI ${ok} karyawan berhasil ${status==='submitted'?'disubmit':'disimpan sebagai draft'}.`
+    : `${ok} berhasil, ${fail} gagal.`, fail===0?'success':'warning');
+}
+
+/* ===== Helpers ===== */
+function getAchHint(ind) {
+  const map = { absensi:'Maks 5 hari', keterlambatan:'0=full poin', linear:'0–100%',
+    sop:'0–100%', challenge:'1/2/3+ challenge', copyright_video:'per video',
+    copyright_lp:'per LP', copyright_gambar:'per gambar' };
+  return map[ind.type] || '—';
+}
+function getUnit(type, unit) {
+  const map = { absensi:'HARI', keterlambatan:'TELAT', caq:'Presentase (%)',
+    botol: unit||'PCS', closing:'PAKET', linear:'%', challenge:'CHALLENGE/BLN',
+    sop:'%', copyright_video:'per video', copyright_lp:'per LP',
+    copyright_gambar:'per gambar', retur: unit||'PCS' };
+  return map[type] || unit || '—';
+}
+</script>
+</body>
+</html>

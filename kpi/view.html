@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPI Saya — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <style>
+    .kpi-table-row { display:grid; grid-template-columns:2fr 80px 110px 120px 110px 80px; gap:8px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--gray-100); }
+    .kpi-table-row:last-child { border-bottom:none; }
+    .kpi-table-header { background:var(--gray-50); border-bottom:2px solid var(--border); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--gray-500); }
+    .kpi-section-header-row { background:var(--primary-bg); padding:10px 16px; font-size:12px; font-weight:700; color:var(--primary-dark); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--border); }
+    .poin-bar { height:6px; background:var(--gray-200); border-radius:3px; overflow:hidden; margin-top:4px; }
+    .poin-bar-fill { height:100%; border-radius:3px; background:var(--primary); }
+    @media print { .no-print { display:none!important; } }
+    @media (max-width: 640px) {
+      .kpi-table-row { grid-template-columns:1fr 90px 80px; gap:6px; padding:10px 12px; }
+      .kpi-table-row > div:nth-child(2),
+      .kpi-table-row > div:nth-child(3) { display:none; }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+  <script src="/js/kpi-calc.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">KPI Saya</div><div class="page-subtitle" id="topbarSubtitle">Lihat rincian penilaian KPI</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <!-- Filters -->
+      <div class="card mb-6 no-print">
+        <div class="card-body" style="padding:16px 24px;">
+          <div class="toolbar" style="margin-bottom:0;">
+            <div class="toolbar-left">
+              <div class="form-group" style="margin-bottom:0;">
+                <select class="form-control" id="periodSelector" onchange="loadKPI()" style="width:180px;"></select>
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <button class="btn btn-secondary" onclick="downloadPDF()">&#128196; Download PDF</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Content (printable) -->
+      <div id="kpiContent">
+        <div class="empty-state">
+          <div class="spinner"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let viewEmployee = null;
+  let pengkaliRules = [];
+
+  (async () => {
+    currentEmployee = await requireAuth();
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+
+    // Load pengkali
+    try { pengkaliRules = await sbGet('pengkali_rules', '?select=*&order=min_poin.asc', getToken()); } catch { pengkaliRules = []; }
+
+    initPeriodSelector();
+
+    const params = new URLSearchParams(window.location.search);
+    const paramPeriod = params.get('period');
+    if (paramPeriod) document.getElementById('periodSelector').value = paramPeriod;
+
+    await loadKPI();
+  })();
+
+  function initPeriodSelector() {
+    const sel = document.getElementById('periodSelector');
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const opt = new Option(getPeriodLabel(val), val);
+      if (i === 0) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  async function loadKPI() {
+    const content = document.getElementById('kpiContent');
+    content.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+
+    const period = document.getElementById('periodSelector').value;
+    const empId = currentEmployee.id;
+
+    // Load employee info
+    let emp;
+    try { const arr = await sbGet('employees', `?select=*,jabatan(nama)&id=eq.${empId}&limit=1`, getToken()); emp = arr?.[0]; } catch {}
+    viewEmployee = emp;
+
+    // Load KPI period
+    const kpiQuery = `?select=id,period,total_poin,status,submitted_at,notes,kpi_templates(nama,omzet_target),kpi_records(id,achieve,poin_get,indicator_id,product_id,kpi_indicators(id,nama,type,bobot,point_total,config,kpi_sections(nama,type,urutan)),products(nama))&employee_id=eq.${empId}&period=eq.${period}&limit=1`;
+    let kpiPeriod;
+    try { const arr = await sbGet('kpi_periods', kpiQuery, getToken()); kpiPeriod = arr?.[0]; } catch {}
+
+    if (!kpiPeriod) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">&#128200;</div>
+          <div class="empty-state-title">Belum ada data KPI</div>
+          <div class="empty-state-text">Tidak ada data KPI untuk ${getPeriodLabel(period)}.</div>
+        </div>
+      `;
+      return;
+    }
+
+    document.getElementById('topbarSubtitle').textContent = `${emp?.nama || '—'} — ${getPeriodLabel(period)}`;
+
+    const totalPoin = Number(kpiPeriod.total_poin) || 0;
+    const jabatanId = emp?.jabatan_id;
+    const jabRules  = pengkaliRules.filter(r => r.jabatan_id === jabatanId);
+    const rules     = jabRules.length ? jabRules : pengkaliRules.filter(r => !r.jabatan_id);
+    const { pengkali, bonusKPI, ruleLabel } = calcBonus(totalPoin, rules);
+
+    // Group records by section
+    const records = kpiPeriod.kpi_records || [];
+    const sectionMap = {};
+    records.forEach(r => {
+      const section = r.kpi_indicators?.kpi_sections;
+      if (!section) return;
+      const key = section.nama;
+      if (!sectionMap[key]) sectionMap[key] = { section, records: [] };
+      sectionMap[key].records.push(r);
+    });
+
+    const sections = Object.values(sectionMap).sort((a, b) => a.section.urutan - b.section.urutan);
+
+    let tableHTML = '';
+    sections.forEach(({ section, records }) => {
+      tableHTML += `<div class="kpi-section-header-row">${section.nama} (${section.type.toUpperCase()})</div>`;
+      records.forEach(r => {
+        const ind = r.kpi_indicators;
+        const maxPoin = Number(ind?.point_total) || 0;
+        const getPoin = Number(r.poin_get) || 0;
+        const pct = maxPoin !== 0 ? Math.min(100, (Math.abs(getPoin) / Math.abs(maxPoin)) * 100) : 0;
+        const poinClass = getPoin > 0 ? 'kpi-poin-positive' : getPoin < 0 ? 'kpi-poin-negative' : 'kpi-poin-zero';
+        const barColor = getPoin > 0 ? 'var(--success)' : 'var(--danger)';
+
+        tableHTML += `
+          <div class="kpi-table-row">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--gray-700);">${ind?.nama || '—'}${r.products ? ' — ' + r.products.nama : ''}</div>
+              <div style="font-size:11px;color:var(--gray-400);">${typeLabel(ind?.type)}</div>
+              <div class="poin-bar"><div class="poin-bar-fill" style="width:${pct.toFixed(1)}%;background:${barColor};"></div></div>
+            </div>
+            <div class="text-right text-sm" style="color:var(--gray-400);">${Number(ind?.bobot || 0).toFixed(1)}%</div>
+            <div class="text-right text-sm">${maxPoin.toLocaleString('id')}</div>
+            <div class="text-right text-sm">${Number(r.achieve).toLocaleString('id')}</div>
+            <div class="text-right font-bold ${poinClass}">${getPoin >= 0 ? '+' : ''}${getPoin.toFixed(0)}</div>
+            <div class="text-right text-sm" style="color:var(--gray-400);">${pct.toFixed(1)}%</div>
+          </div>
+        `;
+      });
+    });
+
+    content.innerHTML = `
+      <!-- Header Info -->
+      <div class="card mb-6">
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;">
+            <div>
+              <div class="text-sm text-muted">Karyawan</div>
+              <div style="font-weight:700;font-size:16px;">${emp?.nama || '—'}</div>
+              <div class="text-sm text-muted">${emp?.jabatan?.nama || '—'}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Periode</div>
+              <div style="font-weight:700;font-size:16px;">${getPeriodLabel(period)}</div>
+              <div class="text-sm text-muted">Template: ${kpiPeriod.kpi_templates?.nama || '—'}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Status</div>
+              <div class="mt-1">${statusBadge(kpiPeriod.status)}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Total Poin</div>
+              <div style="font-weight:800;font-size:28px;color:var(--primary);">${totalPoin.toLocaleString('id')}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Pengkali</div>
+              <div style="font-weight:700;font-size:20px;color:var(--primary);">${pengkali.toFixed(2)}</div>
+              <div class="text-sm text-muted">${ruleLabel}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Estimasi Bonus KPI</div>
+              <div style="font-weight:700;font-size:16px;color:var(--success);">${formatRupiah(bonusKPI)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Rincian Indikator KPI</div>
+        </div>
+        <div class="kpi-table-row kpi-table-header">
+          <div>Indikator</div>
+          <div class="text-right">Bobot</div>
+          <div class="text-right">Poin Max</div>
+          <div class="text-right">Achieve</div>
+          <div class="text-right">Poin Dapat</div>
+          <div class="text-right">%</div>
+        </div>
+        ${tableHTML}
+        <div style="padding:16px 24px;border-top:2px solid var(--border);display:flex;justify-content:flex-end;align-items:center;gap:16px;">
+          <div style="font-size:14px;font-weight:600;color:var(--gray-600);">TOTAL POIN</div>
+          <div style="font-size:24px;font-weight:800;color:${totalPoin >= 0 ? 'var(--primary)' : 'var(--danger)'};">${totalPoin.toLocaleString('id')}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function calcBonus(totalPoin, rules) {
+    if (!rules.length) return { pengkali: 0, bonusKPI: 0, ruleLabel: 'Belum ada rule' };
+    const linear = rules.find(r => r.type === 'linear');
+    if (linear) {
+      const p = totalPoin / (Number(linear.divisor) || 10000);
+      return { pengkali: p, bonusKPI: p * totalPoin, ruleLabel: linear.label || 'Linear' };
+    }
+    const range = rules.find(r => totalPoin >= Number(r.min_poin) && totalPoin <= Number(r.max_poin));
+    if (range) {
+      const p = Number(range.pengkali);
+      return { pengkali: p, bonusKPI: p * totalPoin, ruleLabel: range.label || 'Range' };
+    }
+    return { pengkali: 0, bonusKPI: 0, ruleLabel: 'Di luar range' };
+  }
+
+  function statusBadge(status) {
+    const map = {
+      draft: '<span class="badge badge-gray">Draft</span>',
+      submitted: '<span class="badge badge-blue">Submitted</span>',
+      approved: '<span class="badge badge-green">Approved</span>',
+    };
+    return map[status] || '<span class="badge badge-gray">—</span>';
+  }
+
+  function typeLabel(type) {
+    const map = {
+      absensi: 'Absensi', keterlambatan: 'Keterlambatan', caq: 'CAQ', botol: 'Botol/Volume',
+      closing: 'Closing', linear: 'Linear (%)', challenge: 'Challenge', sop: 'SOP',
+      copyright_video: 'Copyright Video', copyright_lp: 'Copyright LP', copyright_gambar: 'Copyright Gambar',
+      retur: 'Retur', retur_bonus: 'Bonus Retur'
+    };
+    return map[type] || type || '—';
+  }
+
+  function downloadPDF() {
+    const content = document.getElementById('kpiContent');
+    const period = document.getElementById('periodSelector').value;
+    const nama = viewEmployee?.nama || 'Karyawan';
+    const opt = {
+      margin: [10, 10],
+      filename: `KPI_${nama}_${period}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(content).save();
+  }
+</script>
+</body>
+</html>

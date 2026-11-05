@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Karyawan — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">Karyawan</div><div class="page-subtitle">Manajemen data karyawan</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="search-input">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Cari nama karyawan..." oninput="filterTable()" autocomplete="off" style="width:240px;padding-left:36px;">
+          </div>
+          <select class="form-control" id="jabatanFilter" style="width:200px;" onchange="loadEmployees()">
+            <option value="">Semua Jabatan</option>
+          </select>
+          <select class="form-control" id="statusFilter" style="width:150px;" onchange="loadEmployees()">
+            <option value="">Semua Status</option>
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary" onclick="openAddEmployee()">+ Tambah Karyawan</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Daftar Karyawan</div>
+          <div class="card-subtitle" id="employeeCount">Memuat...</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Email</th>
+                <th>Jabatan</th>
+                <th>Divisi</th>
+                <th>Role</th>
+                <th class="text-right">Gaji Pokok</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="employeeTableBody">
+              <tr class="loading-row"><td colspan="8"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Employee -->
+<div class="modal-overlay" id="modalEmployee">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="modalEmployeeTitle">Tambah Karyawan</div>
+      <button class="modal-close" onclick="closeModal('modalEmployee')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="employeeId">
+      <input type="hidden" id="employeeUserId">
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Nama Lengkap <span class="required">*</span></label>
+          <input type="text" class="form-control" id="empNama" placeholder="Nama lengkap karyawan">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email <span class="required">*</span></label>
+          <input type="email" class="form-control" id="empEmail" placeholder="nama@albanna.co.id">
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Divisi</label>
+          <select class="form-control" id="empDivisi" onchange="loadJabatanByDivisi()">
+            <option value="">— Pilih Divisi —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jabatan</label>
+          <select class="form-control" id="empJabatan">
+            <option value="">— Pilih Jabatan —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Role <span class="required">*</span></label>
+          <select class="form-control" id="empRole">
+            <option value="karyawan">Karyawan</option>
+            <option value="hr">HR</option>
+            <option value="finance">Finance</option>
+            <option value="ceo">CEO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" id="empStatus">
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Gaji Pokok (Rp)</label>
+          <input type="number" class="form-control" id="empGajiPokok" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tanggal Bergabung</label>
+          <input type="date" class="form-control" id="empTanggal">
+        </div>
+      </div>
+
+      <div id="passwordSection">
+        <div class="divider"></div>
+        <div class="alert alert-info">
+          <strong>Password Akun</strong> — Password akan digunakan untuk login. Minimal 8 karakter.
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label">Password <span class="required" id="pwRequired">*</span></label>
+            <input type="password" class="form-control" id="empPassword" placeholder="Min. 8 karakter">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Konfirmasi Password</label>
+            <input type="password" class="form-control" id="empPasswordConfirm" placeholder="Ulangi password">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalEmployee')">Batal</button>
+      <button class="btn btn-primary" onclick="saveEmployee()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let allEmployees = [];
+  let divisiList = [];
+  let jabatanList = [];
+
+  (async () => {
+    currentEmployee = await requireRole(['hr', 'ceo']);
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+    await Promise.all([loadDivisi(), loadJabatanAll()]);
+    await loadEmployees();
+  })();
+
+  async function loadDivisi() {
+    try { divisiList = await sbGet('divisions', '?select=*&order=nama', getToken()); } catch { divisiList = []; }
+    const sel = document.getElementById('empDivisi');
+    divisiList.forEach(d => sel.add(new Option(d.nama, d.id)));
+  }
+
+  async function loadJabatanAll() {
+    try { jabatanList = await sbGet('jabatan', '?select=*,divisions(nama)&order=nama', getToken()); } catch { jabatanList = []; }
+
+    const filter = document.getElementById('jabatanFilter');
+    jabatanList.forEach(j => filter.add(new Option(`${j.nama} (${j.divisions?.nama || '-'})`, j.id)));
+  }
+
+  function loadJabatanByDivisi() {
+    const divisiId = document.getElementById('empDivisi').value;
+    const sel = document.getElementById('empJabatan');
+    sel.innerHTML = '<option value="">— Pilih Jabatan —</option>';
+    const filtered = divisiId ? jabatanList.filter(j => j.division_id === divisiId) : jabatanList;
+    filtered.forEach(j => sel.add(new Option(j.nama, j.id)));
+  }
+
+  async function loadEmployees() {
+    const jabatanId = document.getElementById('jabatanFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    const tbody = document.getElementById('employeeTableBody');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="8"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>';
+
+    let queryStr = '?select=*,jabatan(nama,divisions(nama))&order=nama';
+    if (jabatanId) queryStr += `&jabatan_id=eq.${jabatanId}`;
+    if (status) queryStr += `&status=eq.${status}`;
+
+    let data;
+    try {
+      data = await sbGet('employees', queryStr, getToken());
+    } catch(e) { tbody.innerHTML = `<tr><td colspan="8">${e.message}</td></tr>`; return; }
+
+    allEmployees = data || [];
+    document.getElementById('employeeCount').textContent = `${allEmployees.length} karyawan`;
+    renderTable(allEmployees);
+  }
+
+  function filterTable() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = allEmployees.filter(e =>
+      e.nama.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+  }
+
+  function renderTable(employees) {
+    const tbody = document.getElementById('employeeTableBody');
+    if (employees.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted" style="padding:40px;">Tidak ada data karyawan.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = employees.map(e => {
+      const roleBadge = {
+        karyawan: 'badge-gray',
+        hr: 'badge-blue',
+        finance: 'badge-indigo',
+        ceo: 'badge-red'
+      }[e.role] || 'badge-gray';
+
+      const statusBadge = e.status === 'aktif' ? 'badge-green' : 'badge-red';
+
+      return `
+        <tr>
+          <td><strong>${e.nama}</strong></td>
+          <td class="text-sm">${e.email}</td>
+          <td class="text-sm">${e.jabatan?.nama || '—'}</td>
+          <td class="text-sm">${e.jabatan?.divisions?.nama || '—'}</td>
+          <td><span class="badge ${roleBadge}">${e.role.toUpperCase()}</span></td>
+          <td class="text-right">${formatRupiah(e.gaji_pokok)}</td>
+          <td><span class="badge ${statusBadge}">${e.status}</span></td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-secondary" onclick="openEditEmployee(${JSON.stringify(e).replace(/"/g, '&quot;')})">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteEmployee('${e.id}')">Hapus</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openAddEmployee() {
+    document.getElementById('employeeId').value = '';
+    document.getElementById('employeeUserId').value = '';
+    document.getElementById('empNama').value = '';
+    document.getElementById('empEmail').value = '';
+    document.getElementById('empEmail').disabled = false;
+    document.getElementById('empDivisi').value = '';
+    document.getElementById('empJabatan').innerHTML = '<option value="">— Pilih Jabatan —</option>';
+    jabatanList.forEach(j => document.getElementById('empJabatan').add(new Option(j.nama, j.id)));
+    document.getElementById('empRole').value = 'karyawan';
+    document.getElementById('empStatus').value = 'aktif';
+    document.getElementById('empGajiPokok').value = '';
+    document.getElementById('empTanggal').value = new Date().toISOString().split('T')[0];
+    document.getElementById('empPassword').value = '';
+    document.getElementById('empPasswordConfirm').value = '';
+    document.getElementById('passwordSection').style.display = 'block';
+    document.getElementById('pwRequired').style.display = 'inline';
+    document.getElementById('modalEmployeeTitle').textContent = 'Tambah Karyawan';
+    openModal('modalEmployee');
+  }
+
+  function openEditEmployee(e) {
+    document.getElementById('employeeId').value = e.id;
+    document.getElementById('employeeUserId').value = e.user_id || '';
+    document.getElementById('empNama').value = e.nama;
+    document.getElementById('empEmail').value = e.email;
+    document.getElementById('empEmail').disabled = true;
+    document.getElementById('empRole').value = e.role;
+    document.getElementById('empStatus').value = e.status;
+    document.getElementById('empGajiPokok').value = e.gaji_pokok;
+    document.getElementById('empTanggal').value = e.tanggal_bergabung || '';
+
+    // Load jabatan
+    document.getElementById('empJabatan').innerHTML = '<option value="">— Pilih Jabatan —</option>';
+    jabatanList.forEach(j => document.getElementById('empJabatan').add(new Option(j.nama, j.id)));
+    if (e.jabatan_id) document.getElementById('empJabatan').value = e.jabatan_id;
+
+    // Set divisi
+    const jab = jabatanList.find(j => j.id === e.jabatan_id);
+    if (jab?.division_id) document.getElementById('empDivisi').value = jab.division_id;
+
+    document.getElementById('passwordSection').style.display = 'block';
+    document.getElementById('pwRequired').style.display = 'none';
+    document.getElementById('empPassword').value = '';
+    document.getElementById('empPasswordConfirm').value = '';
+    document.getElementById('modalEmployeeTitle').textContent = 'Edit Karyawan';
+    openModal('modalEmployee');
+  }
+
+  async function saveEmployee() {
+    const id = document.getElementById('employeeId').value;
+    const userId = document.getElementById('employeeUserId').value;
+    const email = document.getElementById('empEmail').value.trim();
+    const nama = document.getElementById('empNama').value.trim();
+    const password = document.getElementById('empPassword').value;
+    const passwordConfirm = document.getElementById('empPasswordConfirm').value;
+
+    if (!nama || !email) { showToast('Nama dan email wajib diisi.', 'error'); return; }
+    if (!id && !password) { showToast('Password wajib diisi untuk karyawan baru.', 'error'); return; }
+    if (password && password !== passwordConfirm) { showToast('Password tidak cocok.', 'error'); return; }
+    if (password && password.length < 8) { showToast('Password minimal 8 karakter.', 'error'); return; }
+
+    showLoading(true);
+    try {
+      const empData = {
+        nama,
+        jabatan_id: document.getElementById('empJabatan').value || null,
+        role: document.getElementById('empRole').value,
+        status: document.getElementById('empStatus').value,
+        gaji_pokok: Number(document.getElementById('empGajiPokok').value) || 0,
+        tanggal_bergabung: document.getElementById('empTanggal').value || null,
+      };
+
+      if (!id) {
+        // Sign up new user
+        const signUpResult = await authSignUp(email, password);
+        const newUserId = signUpResult.user?.id || signUpResult.id;
+        if (!newUserId) throw new Error('Gagal membuat akun auth.');
+
+        empData.email = email;
+        empData.user_id = newUserId;
+        await sbPost('employees', empData, getToken());
+      } else {
+        // Update employee
+        await sbPatch('employees', `?id=eq.${id}`, empData, getToken());
+        if (password) showToast('Data tersimpan. Password hanya bisa diubah karyawan sendiri lewat reset.', 'info');
+      }
+
+      showToast('Karyawan berhasil disimpan.', 'success');
+      closeModal('modalEmployee');
+      await loadEmployees();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+
+  async function deleteEmployee(id) {
+    if (!confirm('Hapus karyawan ini? Data KPI dan payroll terkait akan tetap ada.')) return;
+
+    showLoading(true);
+    try {
+      await sbDelete('employees', `?id=eq.${id}`, getToken());
+      showToast('Karyawan dihapus.', 'success');
+      await loadEmployees();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+</script>
+</body>
+</html>

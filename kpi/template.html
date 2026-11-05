@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Template KPI — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">Template KPI</div><div class="page-subtitle">Manajemen template penilaian per jabatan</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+
+    <main class="page-content fade-in">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <select class="form-control" id="jabatanFilter" style="width:220px;" onchange="loadTemplates()">
+            <option value="">Semua Jabatan</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary" onclick="openAddTemplate()">+ Tambah Template</button>
+        </div>
+      </div>
+
+      <div id="templateList"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Template -->
+<div class="modal-overlay" id="modalTemplate">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTemplateTitle">Tambah Template</div>
+      <button class="modal-close" onclick="closeModal('modalTemplate')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="templateId">
+      <div class="form-group">
+        <label class="form-label">Jabatan <span class="required">*</span></label>
+        <select class="form-control" id="templateJabatan" required></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nama Template <span class="required">*</span></label>
+        <input type="text" class="form-control" id="templateNama" placeholder="Contoh: Template CS Manager">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target Omzet (Rp)</label>
+        <input type="number" class="form-control" id="templateOmzet" placeholder="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalTemplate')">Batal</button>
+      <button class="btn btn-primary" onclick="saveTemplate()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Section -->
+<div class="modal-overlay" id="modalSection">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalSectionTitle">Tambah Kategori</div>
+      <button class="modal-close" onclick="closeModal('modalSection')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sectionId">
+      <input type="hidden" id="sectionTemplateId">
+      <div class="form-group">
+        <label class="form-label">Tipe <span class="required">*</span></label>
+        <select class="form-control" id="sectionType" onchange="onSectionTypeChange()">
+          <option value="basic">Basic (Absensi, Keterlambatan)</option>
+          <option value="goal">Goal (Target Produk)</option>
+          <option value="character">Character (Agenda, SOP, Challenge)</option>
+          <option value="pengurangan">Pengurangan (Copyright, Retur)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nama Kategori <span class="required">*</span></label>
+        <input type="text" class="form-control" id="sectionNama" placeholder="Contoh: BASIC PERFORMANCE">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalSection')">Batal</button>
+      <button class="btn btn-primary" onclick="saveSection()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Indicator -->
+<div class="modal-overlay" id="modalIndicator">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="modalIndicatorTitle">Tambah Indikator</div>
+      <button class="modal-close" onclick="closeModal('modalIndicator')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="indicatorId">
+      <input type="hidden" id="indicatorSectionId">
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Nama Indikator <span class="required">*</span></label>
+          <input type="text" class="form-control" id="indicatorNama" placeholder="Contoh: Absensi">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipe Kalkulasi <span class="required">*</span></label>
+          <select class="form-control" id="indicatorType" onchange="renderIndicatorConfig()">
+            <option value="absensi">Absensi</option>
+            <option value="keterlambatan">Keterlambatan</option>
+            <option value="caq">CAQ (Customer Acquisition Quality)</option>
+            <option value="botol">Botol/Volume</option>
+            <option value="closing">Closing Paket</option>
+            <option value="linear">Linear (Agenda/Karakter)</option>
+            <option value="challenge">Challenge (Tiered)</option>
+            <option value="sop">SOP</option>
+            <option value="copyright_video">Copyright Video</option>
+            <option value="copyright_lp">Copyright LP</option>
+            <option value="copyright_gambar">Copyright Gambar</option>
+            <option value="retur">Retur</option>
+            <option value="retur_bonus">Bonus Retur</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Bobot (%) <span class="required">*</span></label>
+          <input type="number" class="form-control" id="indicatorBobot" min="0" max="100" step="0.5" placeholder="Contoh: 10" oninput="calcPointTotal()">
+          <div class="form-hint">Total poin = bobot × 1.000 (skala 100k)</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Poin (otomatis)</label>
+          <input type="number" class="form-control" id="indicatorPointTotal" placeholder="0" readonly style="background:var(--gray-50);">
+        </div>
+      </div>
+
+      <!-- Dynamic config fields -->
+      <div id="indicatorConfigFields"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalIndicator')">Batal</button>
+      <button class="btn btn-primary" onclick="saveIndicator()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let jabatanList = [];
+  let templates = [];
+
+  (async () => {
+    currentEmployee = await requireRole(['hr', 'ceo']);
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+    await loadJabatan();
+    await loadTemplates();
+  })();
+
+  async function loadJabatan() {
+    const token = getToken();
+    const data = await sbGet('jabatan', '?select=id,nama,divisions(nama)&order=nama', token);
+    jabatanList = data || [];
+    const filter = document.getElementById('jabatanFilter');
+    const templateJab = document.getElementById('templateJabatan');
+    jabatanList.forEach(j => {
+      const label = `${j.nama} (${j.divisions?.nama || '-'})`;
+      filter.add(new Option(label, j.id));
+      templateJab.add(new Option(label, j.id));
+    });
+  }
+
+  async function loadTemplates() {
+    const jabatanId = document.getElementById('jabatanFilter').value;
+    const container = document.getElementById('templateList');
+
+    // Simpan state accordion yang sedang terbuka
+    const openIds = new Set(
+      [...document.querySelectorAll('[id^="tbody_"]')]
+        .filter(el => el.style.display !== 'none')
+        .map(el => el.id.replace('tbody_', ''))
+    );
+
+    container.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    const token = getToken();
+
+    let query = '?select=id,nama,omzet_target,is_active,jabatan_id,jabatan(nama,divisions(nama)),kpi_sections(id,nama,type,urutan,kpi_indicators(id,nama,type,bobot,point_total,config,urutan))&order=nama';
+    if (jabatanId) query += `&jabatan_id=eq.${jabatanId}`;
+
+    try {
+      const data = await sbGet('kpi_templates', query, token);
+      templates = data || [];
+
+      if (templates.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128196;</div><div class="empty-state-title">Belum ada template</div><div class="empty-state-text">Klik "Tambah Template" untuk membuat template KPI baru.</div></div>';
+        return;
+      }
+
+      container.innerHTML = templates.map(t => renderTemplate(t)).join('');
+
+      // Restore accordion yang tadi terbuka
+      openIds.forEach(id => {
+        const el = document.getElementById(`tbody_${id}`);
+        if (el) el.style.display = 'block';
+      });
+    } catch (err) {
+      container.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    }
+  }
+
+  function renderTemplate(t) {
+    const sections = (t.kpi_sections || []).sort((a, b) => a.urutan - b.urutan);
+    const totalBobot = sections.flatMap(s => s.kpi_indicators || []).reduce((sum, i) => sum + Number(i.bobot), 0);
+
+    return `
+      <div class="card mb-6" id="template_${t.id}">
+        <div class="card-header" style="cursor:pointer;" onclick="toggleAccordion('tbody_${t.id}')">
+          <div>
+            <div class="card-title">${t.nama}</div>
+            <div class="card-subtitle">${t.jabatan?.nama || '—'} &bull; ${t.jabatan?.divisions?.nama || '—'} &bull; ${sections.length} kategori &bull; Total bobot: ${totalBobot.toFixed(1)}%</div>
+          </div>
+          <div class="btn-group" onclick="event.stopPropagation()">
+            <button class="btn btn-sm btn-secondary" onclick="openAddSection('${t.id}')">+ Kategori</button>
+            <button class="btn btn-sm btn-secondary" onclick="openEditTemplate(${JSON.stringify(t).replace(/"/g, '&quot;')})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${t.id}')">Hapus</button>
+          </div>
+        </div>
+        <div id="tbody_${t.id}" style="display:none;">
+          ${sections.length === 0
+            ? `<div class="card-body text-muted text-sm">Belum ada kategori. Klik "+ Kategori" untuk menambah.</div>`
+            : sections.map(s => renderSection(s, t.id)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSection(s, templateId) {
+    const indicators = (s.kpi_indicators || []).sort((a, b) => a.urutan - b.urutan);
+    const typeBadge = {
+      basic: 'badge-blue', goal: 'badge-green', character: 'badge-indigo', pengurangan: 'badge-red'
+    }[s.type] || 'badge-gray';
+
+    return `
+      <div style="border-top:1px solid var(--border);">
+        <div style="padding:14px 24px;background:var(--gray-50);display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="badge ${typeBadge}">${s.type.toUpperCase()}</span>
+            <strong style="font-size:14px;">${s.nama}</strong>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-primary" onclick="openAddIndicator('${s.id}')">+ Indikator</button>
+            <button class="btn btn-sm btn-secondary" onclick="openEditSection(${JSON.stringify(s).replace(/"/g, '&quot;')}, '${templateId}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteSection('${s.id}')">Hapus</button>
+          </div>
+        </div>
+        ${indicators.length > 0 ? `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Indikator</th>
+                <th>Tipe</th>
+                <th class="text-right">Bobot</th>
+                <th class="text-right">Poin Total</th>
+                <th>Konfigurasi</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${indicators.map(ind => renderIndicatorRow(ind, s.id)).join('')}
+            </tbody>
+          </table>
+        </div>
+        ` : `<div class="card-body text-sm text-muted">Belum ada indikator.</div>`}
+      </div>
+    `;
+  }
+
+  function renderIndicatorRow(ind, sectionId) {
+    const cfg = ind.config || {};
+    let cfgText = '';
+    if (cfg.point_per_unit) cfgText += `PPU: ${cfg.point_per_unit}`;
+    if (cfg.threshold) cfgText += `Threshold: ${cfg.threshold}`;
+    if (cfg.penalty_per_unit) cfgText += `Denda: ${cfg.penalty_per_unit}`;
+
+    return `
+      <tr>
+        <td><strong>${ind.nama}</strong></td>
+        <td><span class="badge badge-gray">${ind.type}</span></td>
+        <td class="text-right">${Number(ind.bobot).toFixed(1)}%</td>
+        <td class="text-right font-bold">${Number(ind.point_total).toLocaleString('id')}</td>
+        <td class="text-sm text-muted">${cfgText || '—'}</td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-secondary" onclick="openEditIndicator(${JSON.stringify(ind).replace(/"/g, '&quot;')}, '${sectionId}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteIndicator('${ind.id}')">Hapus</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function toggleAccordion(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+
+  // TEMPLATE CRUD
+  function openAddTemplate() {
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateNama').value = '';
+    document.getElementById('templateOmzet').value = '';
+    document.getElementById('templateJabatan').selectedIndex = 0;
+    document.getElementById('modalTemplateTitle').textContent = 'Tambah Template';
+    openModal('modalTemplate');
+  }
+
+  function openEditTemplate(t) {
+    document.getElementById('templateId').value = t.id;
+    document.getElementById('templateNama').value = t.nama;
+    document.getElementById('templateOmzet').value = t.omzet_target || '';
+    document.getElementById('templateJabatan').value = t.jabatan_id || '';
+    document.getElementById('modalTemplateTitle').textContent = 'Edit Template';
+    openModal('modalTemplate');
+  }
+
+  async function saveTemplate() {
+    const id = document.getElementById('templateId').value;
+    const body = {
+      jabatan_id: document.getElementById('templateJabatan').value,
+      nama: document.getElementById('templateNama').value.trim(),
+      omzet_target: Number(document.getElementById('templateOmzet').value) || 0,
+    };
+    if (!body.jabatan_id || !body.nama) { showToast('Jabatan dan nama wajib diisi.', 'error'); return; }
+
+    showLoading(true);
+    try {
+      if (id) {
+        await sbPatch('kpi_templates', `?id=eq.${id}`, body, getToken());
+      } else {
+        await sbPost('kpi_templates', body, getToken());
+      }
+      showToast('Template berhasil disimpan.', 'success');
+      closeModal('modalTemplate');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+
+  async function deleteTemplate(id) {
+    if (!confirm('Hapus template ini? Semua kategori dan indikator akan ikut terhapus.')) return;
+    try {
+      await sbDelete('kpi_templates', `?id=eq.${id}`, getToken());
+      showToast('Template dihapus.', 'success');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    }
+  }
+
+  const sectionTypeNames = {
+    basic: 'BASIC PERFORMANCE',
+    goal: 'GOAL PERFORMANCE',
+    character: 'CHARACTER PERFORMANCE',
+    pengurangan: 'PENGURANGAN POINT'
+  };
+
+  function onSectionTypeChange() {
+    const type = document.getElementById('sectionType').value;
+    const namaEl = document.getElementById('sectionNama');
+    // Auto-fill hanya kalau nama masih kosong atau masih nama default
+    const currentNama = namaEl.value.trim().toUpperCase();
+    const isDefault = Object.values(sectionTypeNames).includes(currentNama) || currentNama === '';
+    if (isDefault) namaEl.value = sectionTypeNames[type] || '';
+  }
+
+  // SECTION CRUD
+  function openAddSection(templateId) {
+    document.getElementById('sectionId').value = '';
+    document.getElementById('sectionTemplateId').value = templateId;
+    document.getElementById('sectionType').value = 'goal';
+    document.getElementById('sectionNama').value = sectionTypeNames['goal'];
+    document.getElementById('modalSectionTitle').textContent = 'Tambah Kategori';
+    openModal('modalSection');
+    setTimeout(() => document.getElementById('sectionNama').focus(), 100);
+  }
+
+  function openEditSection(s, templateId) {
+    document.getElementById('sectionId').value = s.id;
+    document.getElementById('sectionTemplateId').value = templateId;
+    document.getElementById('sectionNama').value = s.nama;
+    document.getElementById('sectionType').value = s.type;
+    document.getElementById('modalSectionTitle').textContent = 'Edit Kategori';
+    openModal('modalSection');
+  }
+
+  async function saveSection() {
+    const id = document.getElementById('sectionId').value;
+    const body = {
+      template_id: document.getElementById('sectionTemplateId').value,
+      nama: document.getElementById('sectionNama').value.trim(),
+      type: document.getElementById('sectionType').value,
+    };
+    if (!body.nama) { showToast('Nama kategori wajib diisi.', 'error'); return; }
+
+    try {
+      if (id) {
+        await sbPatch('kpi_sections', `?id=eq.${id}`, body, getToken());
+      } else {
+        await sbPost('kpi_sections', body, getToken());
+      }
+      showToast('Kategori berhasil disimpan.', 'success');
+      closeModal('modalSection');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    }
+  }
+
+  async function deleteSection(id) {
+    if (!confirm('Hapus kategori ini beserta semua indikatornya?')) return;
+    try {
+      await sbDelete('kpi_sections', `?id=eq.${id}`, getToken());
+      showToast('Kategori dihapus.', 'success');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    }
+  }
+
+  // INDICATOR CRUD
+  function calcPointTotal() {
+    const bobot = Number(document.getElementById('indicatorBobot').value) || 0;
+    document.getElementById('indicatorPointTotal').value = bobot * 1000;
+  }
+
+  function renderIndicatorConfig() {
+    const type = document.getElementById('indicatorType').value;
+    const container = document.getElementById('indicatorConfigFields');
+
+    const configs = {
+      absensi: `
+        <div class="form-group">
+          <label class="form-label">Poin Per Unit (hari absen)</label>
+          <input type="number" class="form-control" id="cfg_point_per_unit" placeholder="Contoh: 5000">
+          <div class="form-hint">Poin yang dikurangi/ditambah per hari absen. Kosongkan untuk auto-hitung.</div>
+        </div>
+      `,
+      caq: `<div class="alert alert-info">Tracehold dan target minimal diatur per produk saat input KPI.</div>`,
+      challenge: `<div class="alert alert-info">Tiered otomatis: 1 challenge = 1x, 2 = 1.5x, 3+ = 1.8x poin total.</div>`,
+      sop: `
+        <div class="form-group">
+          <label class="form-label">Threshold SOP (desimal, default 0.70)</label>
+          <input type="number" class="form-control" id="cfg_threshold" min="0" max="1" step="0.01" value="0.70">
+          <div class="form-hint">Jika achieve > threshold, maka poin dihitung. Contoh: 0.70 = 70%</div>
+        </div>
+      `,
+      copyright_video: `
+        <div class="form-group">
+          <label class="form-label">Denda Per Pelanggaran (poin, tanpa tanda minus)</label>
+          <input type="number" class="form-control" id="cfg_penalty_per_unit" placeholder="Contoh: 5000">
+        </div>
+      `,
+      copyright_lp: `
+        <div class="form-group">
+          <label class="form-label">Denda Per Pelanggaran (poin)</label>
+          <input type="number" class="form-control" id="cfg_penalty_per_unit" placeholder="Contoh: 5000">
+        </div>
+      `,
+      copyright_gambar: `
+        <div class="form-group">
+          <label class="form-label">Denda Per Pelanggaran (poin)</label>
+          <input type="number" class="form-control" id="cfg_penalty_per_unit" placeholder="Contoh: 5000">
+        </div>
+      `,
+    };
+
+    container.innerHTML = configs[type] || '';
+  }
+
+  function openAddIndicator(sectionId) {
+    document.getElementById('indicatorId').value = '';
+    document.getElementById('indicatorSectionId').value = sectionId;
+    document.getElementById('indicatorNama').value = '';
+    document.getElementById('indicatorType').value = 'absensi';
+    document.getElementById('indicatorBobot').value = '';
+    document.getElementById('indicatorPointTotal').value = '';
+    document.getElementById('modalIndicatorTitle').textContent = 'Tambah Indikator';
+    renderIndicatorConfig();
+    openModal('modalIndicator');
+  }
+
+  function openEditIndicator(ind, sectionId) {
+    document.getElementById('indicatorId').value = ind.id;
+    document.getElementById('indicatorSectionId').value = sectionId;
+    document.getElementById('indicatorNama').value = ind.nama;
+    document.getElementById('indicatorType').value = ind.type;
+    document.getElementById('indicatorBobot').value = ind.bobot;
+    document.getElementById('indicatorPointTotal').value = ind.point_total;
+    document.getElementById('modalIndicatorTitle').textContent = 'Edit Indikator';
+    renderIndicatorConfig();
+
+    // Fill config fields
+    const cfg = ind.config || {};
+    setTimeout(() => {
+      if (cfg.point_per_unit !== undefined && document.getElementById('cfg_point_per_unit'))
+        document.getElementById('cfg_point_per_unit').value = cfg.point_per_unit;
+      if (cfg.threshold !== undefined && document.getElementById('cfg_threshold'))
+        document.getElementById('cfg_threshold').value = cfg.threshold;
+      if (cfg.penalty_per_unit !== undefined && document.getElementById('cfg_penalty_per_unit'))
+        document.getElementById('cfg_penalty_per_unit').value = cfg.penalty_per_unit;
+    }, 50);
+
+    openModal('modalIndicator');
+  }
+
+  function getIndicatorConfig() {
+    const cfg = {};
+    const ppu = document.getElementById('cfg_point_per_unit');
+    const thr = document.getElementById('cfg_threshold');
+    const pen = document.getElementById('cfg_penalty_per_unit');
+    if (ppu && ppu.value) cfg.point_per_unit = Number(ppu.value);
+    if (thr && thr.value) cfg.threshold = Number(thr.value);
+    if (pen && pen.value) cfg.penalty_per_unit = Number(pen.value);
+    return cfg;
+  }
+
+  async function saveIndicator() {
+    const id = document.getElementById('indicatorId').value;
+    const bobot = Number(document.getElementById('indicatorBobot').value) || 0;
+    const body = {
+      section_id: document.getElementById('indicatorSectionId').value,
+      nama: document.getElementById('indicatorNama').value.trim(),
+      type: document.getElementById('indicatorType').value,
+      bobot,
+      point_total: bobot * 1000,
+      config: getIndicatorConfig(),
+    };
+    if (!body.nama || !body.bobot) { showToast('Nama dan bobot wajib diisi.', 'error'); return; }
+
+    try {
+      if (id) {
+        await sbPatch('kpi_indicators', `?id=eq.${id}`, body, getToken());
+      } else {
+        await sbPost('kpi_indicators', body, getToken());
+      }
+      showToast('Indikator berhasil disimpan.', 'success');
+      closeModal('modalIndicator');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    }
+  }
+
+  async function deleteIndicator(id) {
+    if (!confirm('Hapus indikator ini?')) return;
+    try {
+      await sbDelete('kpi_indicators', `?id=eq.${id}`, getToken());
+      showToast('Indikator dihapus.', 'success');
+      await loadTemplates();
+    } catch (err) {
+      showToast('Gagal: ' + err.message, 'error');
+    }
+  }
+
+  // Init config render
+  document.getElementById('indicatorType').addEventListener('change', renderIndicatorConfig);
+</script>
+</body>
+</html>

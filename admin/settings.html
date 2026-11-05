@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pengaturan — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">Pengaturan</div><div class="page-subtitle">Konfigurasi sistem KPI dan penggajian</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('pengkali')">&#11088; Pengkali Bonus</button>
+        <button class="tab-btn" onclick="switchTab('komponen')">&#128181; Komponen Gaji</button>
+        <button class="tab-btn" onclick="switchTab('bpjs')">&#127973; BPJS</button>
+      </div>
+
+      <!-- TAB: PENGKALI -->
+      <div id="tabPengkali" class="tab-panel active">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Pengkali Bonus KPI</div>
+              <div class="card-subtitle">Atur grade dan multiplier berdasarkan total poin KPI</div>
+            </div>
+            <button class="btn btn-primary" onclick="openAddPengkali()">+ Tambah Grade</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Label Grade</th>
+                  <th class="text-right">Min Poin</th>
+                  <th class="text-right">Max Poin</th>
+                  <th class="text-right">Pengkali</th>
+                  <th>Keterangan</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pengkaliTableBody">
+                <tr class="loading-row"><td colspan="6"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer">
+            <div class="alert alert-info" style="margin:0;">
+              <strong>Cara kerja:</strong> Jika total poin karyawan masuk dalam rentang Min–Max, maka Bonus KPI = Gaji Pokok × (Pengkali − 1). Pengkali 1.0 = tidak ada bonus. Pengkali 1.5 = bonus 50% gaji pokok.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: KOMPONEN GAJI -->
+      <div id="tabKomponen" class="tab-panel">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Tunjangan -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title" style="color:var(--success);">&#128200; Tunjangan</div>
+                <div class="card-subtitle">Komponen penambah gaji</div>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openAddKomponen('tunjangan')">+ Tunjangan</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>Tipe</th>
+                    <th class="text-right">Nilai</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tunjanganTableBody">
+                  <tr class="loading-row"><td colspan="4"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Potongan -->
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title" style="color:var(--danger);">&#128201; Potongan</div>
+                <div class="card-subtitle">Komponen pengurang gaji</div>
+              </div>
+              <button class="btn btn-sm btn-danger" onclick="openAddKomponen('potongan')">+ Potongan</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama</th>
+                    <th>Tipe</th>
+                    <th class="text-right">Nilai</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="potonganTableBody">
+                  <tr class="loading-row"><td colspan="4"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: BPJS -->
+      <div id="tabBpjs" class="tab-panel">
+        <div class="card" style="max-width:600px;">
+          <div class="card-header">
+            <div class="card-title">Konfigurasi BPJS</div>
+            <div class="card-subtitle">Potongan BPJS dihitung sebagai persentase dari gaji pokok</div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">BPJS Kesehatan (%)</label>
+              <div class="input-group has-suffix">
+                <input type="number" class="form-control" id="bpjsKesehatan" min="0" max="10" step="0.1" placeholder="1.0">
+                <div class="input-suffix">%</div>
+              </div>
+              <div class="form-hint">Standar: 1% ditanggung karyawan dari total 5% (4% ditanggung perusahaan)</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">BPJS Ketenagakerjaan (%)</label>
+              <div class="input-group has-suffix">
+                <input type="number" class="form-control" id="bpjsKetenagakerjaan" min="0" max="10" step="0.1" placeholder="2.0">
+                <div class="input-suffix">%</div>
+              </div>
+              <div class="form-hint">Standar: 2% ditanggung karyawan (JHT dari total 5.7%)</div>
+            </div>
+            <div class="alert alert-warning">
+              Mengubah nilai BPJS akan memperbarui komponen salary yang sudah ada. Payroll yang sudah di-generate perlu di-regenerate.
+            </div>
+          </div>
+          <div class="card-footer">
+            <button class="btn btn-primary" onclick="saveBPJS()">&#128190; Simpan Konfigurasi BPJS</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Modal: Pengkali -->
+<div class="modal-overlay" id="modalPengkali">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalPengkaliTitle">Tambah Grade Pengkali</div>
+      <button class="modal-close" onclick="closeModal('modalPengkali')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pengkaliId">
+      <div class="form-group">
+        <label class="form-label">Label Grade <span class="required">*</span></label>
+        <input type="text" class="form-control" id="pkLabel" placeholder="Contoh: Grade A (90k-100k)">
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">Min Poin <span class="required">*</span></label>
+          <input type="number" class="form-control" id="pkMinPoin" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Poin <span class="required">*</span></label>
+          <input type="number" class="form-control" id="pkMaxPoin" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Pengkali <span class="required">*</span></label>
+          <input type="number" class="form-control" id="pkMultiplier" placeholder="1.0" min="0" step="0.1">
+        </div>
+      </div>
+      <div class="alert alert-info">
+        Pengkali 1.0 = gaji normal (tidak ada bonus). 1.5 = bonus 50% gaji pokok.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalPengkali')">Batal</button>
+      <button class="btn btn-primary" onclick="savePengkali()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Komponen Gaji -->
+<div class="modal-overlay" id="modalKomponen">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalKomponenTitle">Tambah Tunjangan</div>
+      <button class="modal-close" onclick="closeModal('modalKomponen')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="komponenId">
+      <input type="hidden" id="komponenType">
+      <div class="form-group">
+        <label class="form-label">Nama Komponen <span class="required">*</span></label>
+        <input type="text" class="form-control" id="kompNama" placeholder="Contoh: Tunjangan Makan">
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Tipe Nilai</label>
+          <select class="form-control" id="kompValueType" onchange="toggleKomponenInput()">
+            <option value="fixed">Nominal Tetap (Rp)</option>
+            <option value="persen">Persentase (% Gaji Pokok)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" id="kompNilaiLabel">Nilai (Rp)</label>
+          <div class="input-group" id="kompNilaiWrap">
+            <div class="input-prefix" id="kompPrefix">Rp</div>
+            <input type="number" class="form-control" id="kompNilai" min="0" step="0.01" placeholder="0">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalKomponen')">Batal</button>
+      <button class="btn btn-primary" onclick="saveKomponen()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+
+  (async () => {
+    currentEmployee = await requireRole(['finance', 'ceo']);
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+    await Promise.all([loadPengkali(), loadKomponen(), loadBPJS()]);
+  })();
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const tabs = ['pengkali', 'komponen', 'bpjs'];
+    const idx = tabs.indexOf(tab);
+    document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+    document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+  }
+
+  // ============ PENGKALI ============
+  async function loadPengkali() {
+    let data;
+    try { data = await sbGet('pengkali_rules', '?select=*&order=min_poin.desc', getToken()); } catch(e) { data = []; }
+    const tbody = document.getElementById('pengkaliTableBody');
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:30px;">Belum ada grade pengkali.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(r => {
+      const bonusPct = ((r.multiplier - 1) * 100).toFixed(0);
+      const bonusLabel = r.multiplier > 1 ? `+${bonusPct}% bonus` : r.multiplier === 1 ? 'Tidak ada bonus' : `${bonusPct}% (penalti)`;
+      const badgeClass = r.multiplier >= 1.5 ? 'badge-green' : r.multiplier >= 1 ? 'badge-yellow' : 'badge-red';
+      return `
+        <tr>
+          <td><strong>${r.label}</strong></td>
+          <td class="text-right">${Number(r.min_poin).toLocaleString('id')}</td>
+          <td class="text-right">${Number(r.max_poin).toLocaleString('id')}</td>
+          <td class="text-right"><span class="badge ${badgeClass}">${r.multiplier}x</span></td>
+          <td class="text-sm text-muted">${bonusLabel}</td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-secondary" onclick="openEditPengkali(${JSON.stringify(r).replace(/"/g, '&quot;')})">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deletePengkali('${r.id}')">Hapus</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openAddPengkali() {
+    document.getElementById('pengkaliId').value = '';
+    document.getElementById('pkLabel').value = '';
+    document.getElementById('pkMinPoin').value = '';
+    document.getElementById('pkMaxPoin').value = '';
+    document.getElementById('pkMultiplier').value = '1.0';
+    document.getElementById('modalPengkaliTitle').textContent = 'Tambah Grade Pengkali';
+    openModal('modalPengkali');
+  }
+
+  function openEditPengkali(r) {
+    document.getElementById('pengkaliId').value = r.id;
+    document.getElementById('pkLabel').value = r.label;
+    document.getElementById('pkMinPoin').value = r.min_poin;
+    document.getElementById('pkMaxPoin').value = r.max_poin;
+    document.getElementById('pkMultiplier').value = r.multiplier;
+    document.getElementById('modalPengkaliTitle').textContent = 'Edit Grade Pengkali';
+    openModal('modalPengkali');
+  }
+
+  async function savePengkali() {
+    const id = document.getElementById('pengkaliId').value;
+    const data = {
+      label: document.getElementById('pkLabel').value.trim(),
+      min_poin: Number(document.getElementById('pkMinPoin').value),
+      max_poin: Number(document.getElementById('pkMaxPoin').value),
+      multiplier: Number(document.getElementById('pkMultiplier').value),
+    };
+    if (!data.label || isNaN(data.min_poin) || isNaN(data.max_poin) || isNaN(data.multiplier)) {
+      showToast('Semua field wajib diisi.', 'error'); return;
+    }
+    if (data.min_poin > data.max_poin) { showToast('Min poin harus lebih kecil dari max poin.', 'error'); return; }
+
+    try {
+      if (id) {
+        await sbPatch('pengkali_rules', `?id=eq.${id}`, data, getToken());
+      } else {
+        await sbPost('pengkali_rules', data, getToken());
+      }
+    } catch(e) { showToast('Gagal: ' + e.message, 'error'); return; }
+    showToast('Grade pengkali berhasil disimpan.', 'success');
+    closeModal('modalPengkali');
+    await loadPengkali();
+  }
+
+  async function deletePengkali(id) {
+    if (!confirm('Hapus grade ini?')) return;
+    try { await sbDelete('pengkali_rules', `?id=eq.${id}`, getToken()); } catch {}
+    showToast('Grade dihapus.', 'success');
+    await loadPengkali();
+  }
+
+  // ============ KOMPONEN GAJI ============
+  async function loadKomponen() {
+    let data;
+    try { data = await sbGet('salary_components', '?select=*&order=type,nama', getToken()); } catch { data = []; }
+    const tunjangan = (data || []).filter(c => c.type === 'tunjangan' && c.nama !== 'BPJS Kesehatan' && c.nama !== 'BPJS Ketenagakerjaan');
+    const potongan = (data || []).filter(c => c.type === 'potongan' && c.nama !== 'BPJS Kesehatan' && c.nama !== 'BPJS Ketenagakerjaan');
+
+    renderKomponenTable('tunjanganTableBody', tunjangan, 'tunjangan');
+    renderKomponenTable('potonganTableBody', potongan, 'potongan');
+  }
+
+  function renderKomponenTable(tbodyId, items, type) {
+    const tbody = document.getElementById(tbodyId);
+    if (!items.length) {
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted" style="padding:20px;">Belum ada ${type}.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = items.map(c => `
+      <tr>
+        <td><strong>${c.nama}</strong></td>
+        <td><span class="badge badge-gray">${c.value_type === 'fixed' ? 'Nominal' : 'Persen'}</span></td>
+        <td class="text-right">${c.value_type === 'fixed' ? formatRupiah(c.nilai) : c.nilai + '%'}</td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-secondary" onclick="openEditKomponen(${JSON.stringify(c).replace(/"/g, '&quot;')})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteKomponen('${c.id}')">Hapus</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openAddKomponen(type) {
+    document.getElementById('komponenId').value = '';
+    document.getElementById('komponenType').value = type;
+    document.getElementById('kompNama').value = '';
+    document.getElementById('kompValueType').value = 'fixed';
+    document.getElementById('kompNilai').value = '';
+    document.getElementById('modalKomponenTitle').textContent = `Tambah ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    toggleKomponenInput();
+    openModal('modalKomponen');
+  }
+
+  function openEditKomponen(c) {
+    document.getElementById('komponenId').value = c.id;
+    document.getElementById('komponenType').value = c.type;
+    document.getElementById('kompNama').value = c.nama;
+    document.getElementById('kompValueType').value = c.value_type;
+    document.getElementById('kompNilai').value = c.nilai;
+    document.getElementById('modalKomponenTitle').textContent = `Edit ${c.type.charAt(0).toUpperCase() + c.type.slice(1)}`;
+    toggleKomponenInput();
+    openModal('modalKomponen');
+  }
+
+  function toggleKomponenInput() {
+    const vt = document.getElementById('kompValueType').value;
+    const label = document.getElementById('kompNilaiLabel');
+    const prefix = document.getElementById('kompPrefix');
+    if (vt === 'persen') {
+      label.textContent = 'Nilai (%)';
+      prefix.textContent = '%';
+    } else {
+      label.textContent = 'Nilai (Rp)';
+      prefix.textContent = 'Rp';
+    }
+  }
+
+  async function saveKomponen() {
+    const id = document.getElementById('komponenId').value;
+    const data = {
+      nama: document.getElementById('kompNama').value.trim(),
+      type: document.getElementById('komponenType').value,
+      value_type: document.getElementById('kompValueType').value,
+      nilai: Number(document.getElementById('kompNilai').value) || 0,
+      is_global: true,
+    };
+    if (!data.nama) { showToast('Nama wajib diisi.', 'error'); return; }
+
+    try {
+      if (id) {
+        await sbPatch('salary_components', `?id=eq.${id}`, data, getToken());
+      } else {
+        await sbPost('salary_components', data, getToken());
+      }
+    } catch(e) { showToast('Gagal: ' + e.message, 'error'); return; }
+    showToast('Komponen berhasil disimpan.', 'success');
+    closeModal('modalKomponen');
+    await loadKomponen();
+  }
+
+  async function deleteKomponen(id) {
+    if (!confirm('Hapus komponen gaji ini?')) return;
+    try { await sbDelete('salary_components', `?id=eq.${id}`, getToken()); } catch {}
+    showToast('Komponen dihapus.', 'success');
+    await loadKomponen();
+  }
+
+  // ============ BPJS ============
+  async function loadBPJS() {
+    let data;
+    try { data = await sbGet('salary_components', '?select=nama,nilai&nama=in.(BPJS Kesehatan,BPJS Ketenagakerjaan)', getToken()); } catch { data = []; }
+
+    if (data) {
+      data.forEach(d => {
+        if (d.nama === 'BPJS Kesehatan') document.getElementById('bpjsKesehatan').value = d.nilai;
+        if (d.nama === 'BPJS Ketenagakerjaan') document.getElementById('bpjsKetenagakerjaan').value = d.nilai;
+      });
+    }
+  }
+
+  async function saveBPJS() {
+    const bpjsK = Number(document.getElementById('bpjsKesehatan').value) || 0;
+    const bpjsKT = Number(document.getElementById('bpjsKetenagakerjaan').value) || 0;
+
+    showLoading(true);
+    try {
+      const existing = await sbGet('salary_components', '?select=id,nama&nama=in.(BPJS Kesehatan,BPJS Ketenagakerjaan)', getToken());
+      const existMap = {};
+      (existing || []).forEach(e => existMap[e.nama] = e.id);
+
+      const items = [
+        { nama: 'BPJS Kesehatan', nilai: bpjsK, type: 'potongan', value_type: 'persen', is_global: true },
+        { nama: 'BPJS Ketenagakerjaan', nilai: bpjsKT, type: 'potongan', value_type: 'persen', is_global: true },
+      ];
+
+      for (const item of items) {
+        if (existMap[item.nama]) {
+          await sbPatch('salary_components', `?id=eq.${existMap[item.nama]}`, { nilai: item.nilai }, getToken());
+        } else {
+          await sbPost('salary_components', item, getToken());
+        }
+      }
+
+      showToast('Konfigurasi BPJS berhasil disimpan.', 'success');
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+</script>
+</body>
+</html>

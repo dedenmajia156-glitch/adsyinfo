@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slip Gaji — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <style>
+    body { background: var(--gray-100); }
+    .slip-container { max-width: 800px; margin: 0 auto; padding: 24px; }
+    .slip-paper {
+      background: white;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      padding: 40px;
+    }
+    .slip-table { width:100%; border-collapse:collapse; margin-bottom:0; }
+    .slip-table th {
+      background: var(--gray-50);
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gray-500);
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    .slip-table td {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--gray-700);
+    }
+    .slip-table td.amount { text-align: right; font-weight: 700; font-family: 'Courier New', monospace; }
+    .slip-table tr.total-row td { background: var(--gray-50); font-weight: 800; font-size: 14px; }
+    .slip-divider { height: 2px; background: var(--border); margin: 20px 0; }
+    .print-toolbar { text-align: center; margin-bottom: 20px; no-print: true; }
+    .stamp-area { text-align: right; margin-top: 40px; }
+    .stamp-box { display: inline-block; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 32px; text-align: center; width: 200px; }
+    .stamp-title { font-size: 12px; color: var(--gray-500); }
+    .stamp-line { border-top: 1px solid var(--gray-400); margin-top: 60px; padding-top: 6px; font-size: 12px; color: var(--gray-600); }
+
+    @media print {
+      body { background: white; }
+      .no-print { display: none !important; }
+      .slip-container { padding: 0; }
+      .slip-paper { box-shadow: none; padding: 20px; }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+  <!-- Toolbar (no print) -->
+  <div class="print-toolbar no-print" style="padding:16px;background:var(--gray-800);display:flex;align-items:center;justify-content:center;gap:12px;">
+    <button class="btn btn-primary" onclick="downloadPDF()">&#128196; Download PDF</button>
+    <button class="btn btn-secondary" onclick="window.print()">&#128424; Cetak</button>
+    <button class="btn btn-ghost" style="color:white;" onclick="window.history.back()">&#8592; Kembali</button>
+  </div>
+
+  <div class="slip-container">
+    <div class="slip-paper" id="slipPaper">
+      <!-- HEADER -->
+      <div class="slip-header" style="text-align:center;padding-bottom:20px;border-bottom:3px double var(--primary);margin-bottom:24px;">
+        <div style="font-size:22px;font-weight:900;color:var(--gray-800);letter-spacing:0.5px;">PT. ALBANNA DIGITAL SULAIMAN YOGYAKARTA</div>
+        <div style="font-size:12px;color:var(--gray-400);margin-top:4px;">Jl. Contoh No. 1, Yogyakarta 55000 | Telp: (0274) 000-0000</div>
+        <div style="margin-top:14px;">
+          <span style="background:var(--primary);color:white;padding:6px 28px;border-radius:20px;font-size:14px;font-weight:700;letter-spacing:0.5px;">SLIP GAJI</span>
+        </div>
+        <div style="margin-top:10px;font-size:13px;font-weight:600;color:var(--gray-600);" id="slipPeriodLabel">—</div>
+      </div>
+
+      <!-- EMPLOYEE INFO -->
+      <div id="slipEmployeeBox" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;background:var(--gray-50);border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;border:1px solid var(--border);">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);">Nama Karyawan</div>
+          <div style="font-weight:700;font-size:15px;" id="slipNama">—</div>
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);">Jabatan</div>
+          <div style="font-weight:700;font-size:15px;" id="slipJabatan">—</div>
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);">Divisi</div>
+          <div style="font-weight:600;" id="slipDivisi">—</div>
+        </div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);">Status</div>
+          <div style="font-weight:600;" id="slipStatus">—</div>
+        </div>
+      </div>
+
+      <!-- TWO COLUMN: PENGHASILAN & POTONGAN -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+        <!-- Komponen Penghasilan -->
+        <div>
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--success);margin-bottom:8px;">&#128200; Komponen Penghasilan</div>
+          <table class="slip-table">
+            <thead>
+              <tr>
+                <th>Keterangan</th>
+                <th style="text-align:right;">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="penghasilanBody"></tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td>Total Penghasilan</td>
+                <td class="amount" style="color:var(--success);" id="totalPenghasilan">Rp 0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Komponen Potongan -->
+        <div>
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--danger);margin-bottom:8px;">&#128201; Komponen Potongan</div>
+          <table class="slip-table">
+            <thead>
+              <tr>
+                <th>Keterangan</th>
+                <th style="text-align:right;">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody id="potonganBody"></tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td>Total Potongan</td>
+                <td class="amount" style="color:var(--danger);" id="totalPotongan">Rp 0</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- BONUS KPI -->
+      <div id="bonusKPISection" style="background:var(--primary-bg);border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;border:1px solid var(--primary-light);">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--primary-dark);margin-bottom:8px;">&#11088; Bonus KPI</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          <div>
+            <div style="font-size:11px;color:var(--primary-dark);">Total Poin</div>
+            <div style="font-weight:800;color:var(--primary);" id="slipTotalPoin">—</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--primary-dark);">Grade / Pengkali</div>
+            <div style="font-weight:800;color:var(--primary);" id="slipGrade">—</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--primary-dark);">Bonus KPI</div>
+            <div style="font-weight:800;font-size:18px;color:var(--primary);" id="slipBonusKPI">Rp 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NET GAJI -->
+      <div style="background:var(--primary);color:white;border-radius:var(--radius);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;">
+        <div>
+          <div style="font-size:12px;opacity:0.8;text-transform:uppercase;letter-spacing:1px;">Gaji Bersih Diterima</div>
+          <div style="font-size:13px;opacity:0.7;margin-top:2px;">Setelah semua komponen</div>
+        </div>
+        <div style="font-size:28px;font-weight:900;" id="slipNetGaji">Rp 0</div>
+      </div>
+
+      <!-- Terbilang -->
+      <div style="font-size:12px;color:var(--gray-500);font-style:italic;margin-bottom:32px;border-top:1px dashed var(--border);padding-top:12px;">
+        Terbilang: <span id="slipTerbilang" style="font-weight:600;color:var(--gray-700);">—</span>
+      </div>
+
+      <!-- Signature -->
+      <div class="stamp-area">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;max-width:500px;margin-left:auto;">
+          <div class="stamp-box">
+            <div class="stamp-title">Penerima</div>
+            <div class="stamp-line" id="slipNamaTtd">—</div>
+          </div>
+          <div class="stamp-box">
+            <div class="stamp-title">Finance / HRD</div>
+            <div class="stamp-line">(.................)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;margin-top:32px;font-size:11px;color:var(--gray-300);border-top:1px solid var(--border);padding-top:16px;">
+        Slip gaji ini digenerate secara otomatis oleh sistem KPI &amp; Gaji — PT. Albanna Digital Sulaiman Yogyakarta
+      </div>
+    </div>
+  </div>
+
+<script>
+  let currentEmployee = null;
+
+  (async () => {
+    currentEmployee = await requireAuth();
+    if (!currentEmployee) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const payrollId = params.get('payroll_id');
+
+    if (!payrollId) {
+      document.getElementById('slipPaper').innerHTML = '<div class="alert alert-error">Parameter payroll_id tidak ditemukan.</div>';
+      return;
+    }
+
+    await loadSlip(payrollId);
+  })();
+
+  async function loadSlip(payrollId) {
+    let arr;
+    try { arr = await sbGet('payroll', `?select=*,employees(nama,jabatan(nama,divisions(nama))),payroll_components(*),kpi_periods(total_poin,kpi_templates(nama))&id=eq.${payrollId}&limit=1`, getToken()); } catch {}
+    const p = arr?.[0];
+
+    if (!p) {
+      document.getElementById('slipPaper').innerHTML = '<p style="color:red;padding:20px;">Data payroll tidak ditemukan.</p>';
+      return;
+    }
+
+    // Check access
+    const isOwn = p.employee_id === currentEmployee.id;
+    const hasAccess = ['finance', 'ceo', 'hr'].includes(currentEmployee.role) || isOwn;
+    if (!hasAccess) {
+      document.getElementById('slipPaper').innerHTML = '<div class="alert alert-error">Anda tidak memiliki akses ke slip gaji ini.</div>';
+      return;
+    }
+
+    const emp = p.employees;
+    document.title = `Slip Gaji ${emp?.nama} — ${getPeriodLabel(p.period)}`;
+    document.getElementById('slipPeriodLabel').textContent = `Periode: ${getPeriodLabel(p.period)}`;
+    document.getElementById('slipNama').textContent = emp?.nama || '—';
+    document.getElementById('slipJabatan').textContent = emp?.jabatan?.nama || '—';
+    document.getElementById('slipDivisi').textContent = emp?.jabatan?.divisions?.nama || '—';
+    document.getElementById('slipStatus').textContent = p.status.charAt(0).toUpperCase() + p.status.slice(1);
+    document.getElementById('slipNamaTtd').textContent = emp?.nama || '—';
+
+    const components = p.payroll_components || [];
+    const tunjangan = components.filter(c => c.type === 'tunjangan');
+    const potongan = components.filter(c => c.type === 'potongan');
+
+    // Penghasilan
+    let totalPenghasilan = Number(p.gaji_pokok) || 0;
+    const penghasilanRows = [
+      { nama: 'Gaji Pokok', jumlah: Number(p.gaji_pokok) || 0 },
+      ...tunjangan.map(t => ({ nama: t.nama, jumlah: Number(t.jumlah) || 0 }))
+    ];
+
+    penghasilanRows.forEach(r => {
+      if (r.nama !== 'Gaji Pokok') totalPenghasilan += r.jumlah;
+    });
+
+    document.getElementById('penghasilanBody').innerHTML = penghasilanRows.map(r => `
+      <tr>
+        <td>${r.nama}</td>
+        <td class="amount">${formatRupiah(r.jumlah)}</td>
+      </tr>
+    `).join('');
+
+    // Potongan
+    let totalPotongan = Number(p.total_kasbon) || 0;
+    const potonganRows = [
+      ...potongan.map(t => ({ nama: t.nama, jumlah: Number(t.jumlah) || 0 })),
+    ];
+    if (Number(p.total_kasbon) > 0) {
+      potonganRows.push({ nama: 'Kasbon', jumlah: Number(p.total_kasbon) || 0 });
+    }
+
+    let calcPotongan = 0;
+    potonganRows.forEach(r => calcPotongan += r.jumlah);
+
+    document.getElementById('potonganBody').innerHTML = potonganRows.map(r => `
+      <tr>
+        <td>${r.nama}</td>
+        <td class="amount" style="color:var(--danger);">${formatRupiah(r.jumlah)}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="2" class="text-muted text-sm text-center">Tidak ada potongan</td></tr>';
+
+    document.getElementById('totalPenghasilan').textContent = formatRupiah(totalPenghasilan);
+    document.getElementById('totalPotongan').textContent = formatRupiah(calcPotongan);
+
+    // KPI
+    const kpiData = p.kpi_periods;
+    const totalPoin = kpiData ? Number(kpiData.total_poin) : 0;
+
+    let pkRules;
+    try { pkRules = await sbGet('pengkali_rules', '?select=*&order=min_poin.desc', getToken()); } catch {}
+    const rule = pkRules?.find(r => totalPoin >= r.min_poin && totalPoin <= r.max_poin);
+
+    document.getElementById('slipTotalPoin').textContent = totalPoin.toLocaleString('id');
+    document.getElementById('slipGrade').textContent = rule ? `${rule.label} (${rule.multiplier}x)` : '—';
+    document.getElementById('slipBonusKPI').textContent = formatRupiah(Number(p.bonus_kpi) || 0);
+
+    if (!kpiData) {
+      document.getElementById('bonusKPISection').style.display = 'none';
+    }
+
+    // Net Gaji
+    const netGaji = Number(p.net_gaji) || 0;
+    document.getElementById('slipNetGaji').textContent = formatRupiah(netGaji);
+    document.getElementById('slipTerbilang').textContent = terbilang(Math.round(netGaji)) + ' Rupiah';
+  }
+
+  function terbilang(n) {
+    if (n === 0) return 'Nol';
+    const satuan = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan',
+      'Sepuluh', 'Sebelas', 'Dua Belas', 'Tiga Belas', 'Empat Belas', 'Lima Belas',
+      'Enam Belas', 'Tujuh Belas', 'Delapan Belas', 'Sembilan Belas'];
+
+    function toWords(num) {
+      if (num < 20) return satuan[num];
+      if (num < 100) return satuan[Math.floor(num/10) + 8] + ' Puluh' + (num%10 ? ' ' + satuan[num%10] : '');
+      if (num < 200) return 'Seratus' + (num%100 ? ' ' + toWords(num%100) : '');
+      if (num < 1000) return satuan[Math.floor(num/100)] + ' Ratus' + (num%100 ? ' ' + toWords(num%100) : '');
+      if (num < 2000) return 'Seribu' + (num%1000 ? ' ' + toWords(num%1000) : '');
+      if (num < 1000000) return toWords(Math.floor(num/1000)) + ' Ribu' + (num%1000 ? ' ' + toWords(num%1000) : '');
+      if (num < 1000000000) return toWords(Math.floor(num/1000000)) + ' Juta' + (num%1000000 ? ' ' + toWords(num%1000000) : '');
+      return toWords(Math.floor(num/1000000000)) + ' Miliar' + (num%1000000000 ? ' ' + toWords(num%1000000000) : '');
+    }
+
+    return toWords(n);
+  }
+
+  function downloadPDF() {
+    const paper = document.getElementById('slipPaper');
+    const name = document.getElementById('slipNama').textContent.replace(/\s+/g, '_');
+    const period = new URLSearchParams(window.location.search).get('period') || 'slip';
+    html2pdf().set({
+      margin: [8, 8],
+      filename: `SlipGaji_${name}_${period}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(paper).save();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payroll — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <style>
+    .side-panel { position:fixed; right:0; top:0; bottom:0; width:420px; background:var(--white); box-shadow:-4px 0 20px rgba(0,0,0,0.1); z-index:200; overflow-y:auto; transform:translateX(100%); transition:transform 0.3s ease; }
+    .side-panel.open { transform:translateX(0); }
+    .side-panel-header { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--white); z-index:1; }
+    .side-panel-body { padding:24px; }
+    .component-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .component-row input { flex:1; }
+  </style>
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">Payroll</div><div class="page-subtitle">Manajemen penggajian karyawan</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <!-- Tabs -->
+      <div class="tabs no-print">
+        <button class="tab-btn active" onclick="switchTab('payroll')">&#128181; Payroll</button>
+        <button class="tab-btn" onclick="switchTab('kasbon')">&#128184; Kasbon</button>
+      </div>
+
+      <!-- Payroll Tab -->
+      <div id="tabPayroll" class="tab-panel active">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <select class="form-control" id="periodFilter" style="width:180px;" onchange="loadPayroll()"></select>
+            <select class="form-control" id="statusFilter" style="width:160px;" onchange="loadPayroll()">
+              <option value="">Semua Status</option>
+              <option value="draft">Draft</option>
+              <option value="approved">Approved</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-secondary" onclick="loadPayroll()">&#8635; Refresh</button>
+            <button class="btn btn-primary" id="generateBtn" onclick="generatePayroll()">&#9889; Generate Payroll</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Daftar Payroll</div>
+            <div class="card-subtitle" id="payrollSubtitle"></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Karyawan</th>
+                  <th>Jabatan</th>
+                  <th class="text-right">Gaji Pokok</th>
+                  <th class="text-right">Tunjangan</th>
+                  <th class="text-right">Potongan</th>
+                  <th class="text-right">Bonus KPI</th>
+                  <th class="text-right">Kasbon</th>
+                  <th class="text-right">Net Gaji</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="payrollTableBody">
+                <tr class="loading-row"><td colspan="10"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer" id="payrollFooter" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="text-sm text-muted"><span id="payrollCount">0</span> karyawan</div>
+              <div style="font-weight:800;font-size:18px;">Total Net: <span id="totalNet" style="color:var(--primary);"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kasbon Tab -->
+      <div id="tabKasbon" class="tab-panel">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <select class="form-control" id="kasbonPeriodFilter" style="width:180px;" onchange="loadKasbon()"></select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn btn-primary" onclick="openAddKasbon()">+ Tambah Kasbon</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Catatan Kasbon</div></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Karyawan</th>
+                  <th>Periode</th>
+                  <th class="text-right">Jumlah</th>
+                  <th>Keterangan</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="kasbonTableBody">
+                <tr class="loading-row"><td colspan="6"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Side Panel: Edit Payroll -->
+<div class="side-panel" id="sidePanel">
+  <div class="side-panel-header">
+    <div>
+      <div style="font-size:16px;font-weight:700;" id="sidePanelName">—</div>
+      <div style="font-size:12px;color:var(--gray-400);" id="sidePanelPeriod">—</div>
+    </div>
+    <button class="modal-close" onclick="closeSidePanel()">&#10005;</button>
+  </div>
+  <div class="side-panel-body">
+    <input type="hidden" id="editPayrollId">
+
+    <div class="form-group">
+      <label class="form-label">Gaji Pokok</label>
+      <div class="input-group has-prefix">
+        <div class="input-prefix">Rp</div>
+        <input type="number" class="form-control" id="editGajiPokok">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Tunjangan</div>
+    <div id="tunjanganList"></div>
+
+    <div class="divider"></div>
+
+    <div style="font-size:13px;font-weight:700;color:var(--gray-600);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Potongan</div>
+    <div id="potonganList"></div>
+
+    <div class="divider"></div>
+
+    <div class="form-group">
+      <label class="form-label">Bonus KPI</label>
+      <div class="input-group has-prefix">
+        <div class="input-prefix">Rp</div>
+        <input type="number" class="form-control" id="editBonusKPI" readonly style="background:var(--gray-50);">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Kasbon</label>
+      <div class="input-group has-prefix">
+        <div class="input-prefix">Rp</div>
+        <input type="number" class="form-control" id="editKasbon">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Catatan</label>
+      <textarea class="form-control" id="editNotes" rows="3"></textarea>
+    </div>
+
+    <div style="background:var(--primary-bg);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+      <div style="font-size:12px;color:var(--primary-dark);">ESTIMASI NET GAJI</div>
+      <div style="font-size:24px;font-weight:800;color:var(--primary);" id="editNetGaji">Rp 0</div>
+    </div>
+
+    <div class="btn-group" style="flex-direction:column;gap:8px;">
+      <button class="btn btn-primary" onclick="savePayrollEdit()">&#128190; Simpan Perubahan</button>
+      <button class="btn btn-success" onclick="approvePayroll()" id="approveBtn">&#10003; Approve Payroll</button>
+      <a href="/payroll/slip.html" id="slipLink" target="_blank" class="btn btn-secondary">&#128196; Lihat Slip Gaji</a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Kasbon -->
+<div class="modal-overlay" id="modalKasbon">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Tambah Kasbon</div>
+      <button class="modal-close" onclick="closeModal('modalKasbon')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Karyawan</label>
+        <select class="form-control" id="kasbonEmployee"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Periode</label>
+        <input type="month" class="form-control" id="kasbonPeriod">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jumlah (Rp)</label>
+        <input type="number" class="form-control" id="kasbonJumlah" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Keterangan</label>
+        <textarea class="form-control" id="kasbonKet" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalKasbon')">Batal</button>
+      <button class="btn btn-primary" onclick="saveKasbon()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let salaryComponents = [];
+  let currentEditPayroll = null;
+
+  (async () => {
+    currentEmployee = await requireRole(['finance', 'ceo']);
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+    initPeriodFilters();
+    await loadSalaryComponents();
+    loadPayroll();
+    loadKasbon();
+    loadEmployeesForKasbon();
+  })();
+
+  function initPeriodFilters() {
+    ['periodFilter', 'kasbonPeriodFilter'].forEach(id => {
+      const sel = document.getElementById(id);
+      const now = new Date();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const opt = new Option(getPeriodLabel(val), val);
+        if (i === 0) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    });
+    const now = new Date();
+    document.getElementById('kasbonPeriod').value =
+      `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  async function loadSalaryComponents() {
+    try { salaryComponents = await sbGet('salary_components', '?select=*&is_global=eq.true&order=type', getToken()); } catch { salaryComponents = []; }
+  }
+
+  async function loadEmployeesForKasbon() {
+    let data;
+    try { data = await sbGet('employees', '?select=id,nama&status=eq.aktif&order=nama', getToken()); } catch { data = []; }
+    const sel = document.getElementById('kasbonEmployee');
+    (data || []).forEach(e => sel.add(new Option(e.nama, e.id)));
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const idx = tab === 'payroll' ? 0 : 1;
+    document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+    document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+  }
+
+  async function loadPayroll() {
+    const period = document.getElementById('periodFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    const tbody = document.getElementById('payrollTableBody');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="10"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>';
+
+    let queryStr = `?select=*,employees(nama,jabatan(nama))&period=eq.${period}&order=employees(nama)`;
+    if (status) queryStr += `&status=eq.${status}`;
+
+    let data;
+    try { data = await sbGet('payroll', queryStr, getToken()); }
+    catch(e) { tbody.innerHTML = `<tr><td colspan="10" class="text-center">${e.message}</td></tr>`; return; }
+
+    document.getElementById('payrollSubtitle').textContent = getPeriodLabel(period);
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding:40px;">Belum ada payroll untuk periode ini. Klik "Generate Payroll" untuk membuat.</td></tr>`;
+      document.getElementById('payrollFooter').style.display = 'none';
+      return;
+    }
+
+    const totalNet = data.reduce((s, r) => s + Number(r.net_gaji), 0);
+    document.getElementById('payrollCount').textContent = data.length;
+    document.getElementById('totalNet').textContent = formatRupiah(totalNet);
+    document.getElementById('payrollFooter').style.display = 'block';
+
+    tbody.innerHTML = data.map(p => {
+      const statusBadge = {
+        draft: '<span class="badge badge-gray">Draft</span>',
+        approved: '<span class="badge badge-blue">Approved</span>',
+        paid: '<span class="badge badge-green">Paid</span>',
+      }[p.status] || '';
+
+      return `
+        <tr>
+          <td><strong>${p.employees?.nama || '—'}</strong></td>
+          <td class="text-sm">${p.employees?.jabatan?.nama || '—'}</td>
+          <td class="text-right">${formatRupiah(p.gaji_pokok)}</td>
+          <td class="text-right text-sm" style="color:var(--success);">+${formatRupiah(p.total_tunjangan)}</td>
+          <td class="text-right text-sm" style="color:var(--danger);">-${formatRupiah(p.total_potongan)}</td>
+          <td class="text-right text-sm" style="color:var(--success);">+${formatRupiah(p.bonus_kpi)}</td>
+          <td class="text-right text-sm" style="color:var(--danger);">-${formatRupiah(p.total_kasbon)}</td>
+          <td class="text-right font-bold" style="color:var(--primary);">${formatRupiah(p.net_gaji)}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <div class="btn-group">
+              <button class="btn btn-sm btn-secondary" onclick="openEditPayroll('${p.id}')">Edit</button>
+              <a href="/payroll/slip.html?payroll_id=${p.id}" target="_blank" class="btn btn-sm btn-ghost">Slip</a>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function generatePayroll() {
+    const period = document.getElementById('periodFilter').value;
+    if (!confirm(`Generate payroll untuk ${getPeriodLabel(period)}? Karyawan yang sudah ada payroll akan dilewati.`)) return;
+
+    showLoading(true);
+    try {
+      // Get all active employees
+      const employees = await sbGet('employees', '?select=id,gaji_pokok,jabatan_id&status=eq.aktif', getToken());
+
+      // Get KPI periods for this month
+      const kpiPeriods = await sbGet('kpi_periods', `?select=id,employee_id,total_poin&period=eq.${period}`, getToken());
+      const kpiMap = {};
+      (kpiPeriods || []).forEach(kp => { kpiMap[kp.employee_id] = kp; });
+
+      // Get pengkali rules
+      const pkRules = await sbGet('pengkali_rules', '?select=*&order=min_poin.desc', getToken());
+
+      // Get global salary components
+      const components = await sbGet('salary_components', '?select=*&is_global=eq.true', getToken());
+
+      // Get kasbon for this period
+      const kasbons = await sbGet('kasbon_records', `?select=employee_id,jumlah&period=eq.${period}&status=eq.approved`, getToken());
+      const kasbonMap = {};
+      (kasbons || []).forEach(k => { kasbonMap[k.employee_id] = (kasbonMap[k.employee_id] || 0) + Number(k.jumlah); });
+
+      // Existing payrolls
+      const existPayrolls = await sbGet('payroll', `?select=employee_id&period=eq.${period}`, getToken());
+      const existSet = new Set((existPayrolls || []).map(p => p.employee_id));
+
+      let created = 0;
+      for (const emp of (employees || [])) {
+        if (existSet.has(emp.id)) continue;
+
+        const gajiPokok = Number(emp.gaji_pokok) || 0;
+        const kpi = kpiMap[emp.id];
+        const totalPoin = kpi ? Number(kpi.total_poin) : 0;
+        const rule = pkRules?.find(r => totalPoin >= r.min_poin && totalPoin <= r.max_poin);
+        const pengkali = rule?.multiplier || 1;
+        const bonusKPI = gajiPokok * pengkali - gajiPokok;
+
+        // Calculate tunjangan and potongan
+        let totalTunjangan = 0;
+        let totalPotongan = 0;
+        const compRecords = [];
+
+        for (const comp of (components || [])) {
+          let jumlah = 0;
+          if (comp.value_type === 'fixed') {
+            jumlah = Number(comp.nilai);
+          } else {
+            jumlah = gajiPokok * (Number(comp.nilai) / 100);
+          }
+          compRecords.push({ component_id: comp.id, nama: comp.nama, type: comp.type, value_type: comp.value_type, nilai: comp.nilai, jumlah });
+          if (comp.type === 'tunjangan') totalTunjangan += jumlah;
+          else totalPotongan += jumlah;
+        }
+
+        const kasbon = kasbonMap[emp.id] || 0;
+        const netGaji = gajiPokok + totalTunjangan - totalPotongan + bonusKPI - kasbon;
+
+        const newPayrollArr = await sbPost('payroll', {
+          employee_id: emp.id,
+          period,
+          gaji_pokok: gajiPokok,
+          total_tunjangan: totalTunjangan,
+          total_potongan: totalPotongan,
+          bonus_kpi: bonusKPI,
+          total_kasbon: kasbon,
+          pengkali,
+          kpi_period_id: kpi?.id || null,
+          net_gaji: netGaji,
+          status: 'draft',
+        }, getToken());
+        const newPayroll = Array.isArray(newPayrollArr) ? newPayrollArr[0] : newPayrollArr;
+
+        if (newPayroll?.id && compRecords.length > 0) {
+          await sbPost('payroll_components', compRecords.map(c => ({ ...c, payroll_id: newPayroll.id })), getToken());
+        }
+        created++;
+      }
+
+      showToast(`${created} payroll baru berhasil dibuat.`, 'success');
+      await loadPayroll();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+
+  async function openEditPayroll(id) {
+    let arr;
+    try { arr = await sbGet('payroll', `?select=*,employees(nama,jabatan(nama)),payroll_components(*)&id=eq.${id}&limit=1`, getToken()); } catch {}
+    const p = arr?.[0];
+
+    if (!p) return;
+    currentEditPayroll = p;
+
+    document.getElementById('editPayrollId').value = id;
+    document.getElementById('sidePanelName').textContent = p.employees?.nama;
+    document.getElementById('sidePanelPeriod').textContent = getPeriodLabel(p.period);
+    document.getElementById('editGajiPokok').value = p.gaji_pokok;
+    document.getElementById('editBonusKPI').value = p.bonus_kpi;
+    document.getElementById('editKasbon').value = p.total_kasbon;
+    document.getElementById('editNotes').value = p.notes || '';
+    document.getElementById('slipLink').href = `/payroll/slip.html?payroll_id=${id}`;
+    document.getElementById('approveBtn').style.display = p.status !== 'approved' ? 'block' : 'none';
+
+    // Render tunjangan & potongan components
+    renderComponents(p.payroll_components || []);
+    recalcEdit();
+
+    document.getElementById('sidePanel').classList.add('open');
+  }
+
+  function renderComponents(components) {
+    const tunj = components.filter(c => c.type === 'tunjangan');
+    const pot = components.filter(c => c.type === 'potongan');
+
+    document.getElementById('tunjanganList').innerHTML = tunj.map(c => `
+      <div class="component-row">
+        <div style="flex:1;font-size:13px;font-weight:500;">${c.nama}</div>
+        <input type="number" class="form-control" value="${c.jumlah}" style="width:130px;" id="comp_${c.id}" onchange="recalcEdit()">
+      </div>
+    `).join('') || '<div class="text-muted text-sm">Tidak ada tunjangan.</div>';
+
+    document.getElementById('potonganList').innerHTML = pot.map(c => `
+      <div class="component-row">
+        <div style="flex:1;font-size:13px;font-weight:500;">${c.nama}</div>
+        <input type="number" class="form-control" value="${c.jumlah}" style="width:130px;" id="comp_${c.id}" onchange="recalcEdit()">
+      </div>
+    `).join('') || '<div class="text-muted text-sm">Tidak ada potongan.</div>';
+  }
+
+  function recalcEdit() {
+    if (!currentEditPayroll) return;
+    const components = currentEditPayroll.payroll_components || [];
+    let totalTunjangan = 0, totalPotongan = 0;
+
+    components.forEach(c => {
+      const input = document.getElementById(`comp_${c.id}`);
+      const val = input ? Number(input.value) : Number(c.jumlah);
+      if (c.type === 'tunjangan') totalTunjangan += val;
+      else totalPotongan += val;
+    });
+
+    const gajiPokok = Number(document.getElementById('editGajiPokok').value) || 0;
+    const bonusKPI = Number(document.getElementById('editBonusKPI').value) || 0;
+    const kasbon = Number(document.getElementById('editKasbon').value) || 0;
+    const net = gajiPokok + totalTunjangan - totalPotongan + bonusKPI - kasbon;
+    document.getElementById('editNetGaji').textContent = formatRupiah(net);
+  }
+
+  async function savePayrollEdit() {
+    const id = document.getElementById('editPayrollId').value;
+    if (!id) return;
+
+    const components = currentEditPayroll?.payroll_components || [];
+    let totalTunjangan = 0, totalPotongan = 0;
+    const compUpdates = [];
+
+    components.forEach(c => {
+      const input = document.getElementById(`comp_${c.id}`);
+      const val = input ? Number(input.value) : Number(c.jumlah);
+      if (c.type === 'tunjangan') totalTunjangan += val;
+      else totalPotongan += val;
+      compUpdates.push({ id: c.id, jumlah: val });
+    });
+
+    const gajiPokok = Number(document.getElementById('editGajiPokok').value) || 0;
+    const bonusKPI = Number(document.getElementById('editBonusKPI').value) || 0;
+    const kasbon = Number(document.getElementById('editKasbon').value) || 0;
+    const netGaji = gajiPokok + totalTunjangan - totalPotongan + bonusKPI - kasbon;
+
+    showLoading(true);
+    try {
+      await sbPatch('payroll', `?id=eq.${id}`, {
+        gaji_pokok: gajiPokok,
+        total_tunjangan: totalTunjangan,
+        total_potongan: totalPotongan,
+        bonus_kpi: bonusKPI,
+        total_kasbon: kasbon,
+        net_gaji: netGaji,
+        notes: document.getElementById('editNotes').value,
+      }, getToken());
+
+      for (const cu of compUpdates) {
+        await sbPatch('payroll_components', `?id=eq.${cu.id}`, { jumlah: cu.jumlah }, getToken());
+      }
+
+      showToast('Payroll berhasil disimpan.', 'success');
+      await loadPayroll();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+
+  async function approvePayroll() {
+    const id = document.getElementById('editPayrollId').value;
+    if (!confirm('Approve payroll ini?')) return;
+    try { await sbPatch('payroll', `?id=eq.${id}`, { status: 'approved', approved_by: currentEmployee.id, approved_at: new Date().toISOString() }, getToken()); } catch {}
+    showToast('Payroll approved.', 'success');
+    document.getElementById('approveBtn').style.display = 'none';
+    await loadPayroll();
+  }
+
+  function closeSidePanel() {
+    document.getElementById('sidePanel').classList.remove('open');
+  }
+
+  // KASBON
+  async function loadKasbon() {
+    const period = document.getElementById('kasbonPeriodFilter').value;
+    const tbody = document.getElementById('kasbonTableBody');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>';
+
+    let data;
+    try { data = await sbGet('kasbon_records', `?select=*,employees(nama)&period=eq.${period}&order=created_at.desc`, getToken()); } catch { data = []; }
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:40px;">Belum ada catatan kasbon.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(k => {
+      const st = { pending: 'badge-yellow', approved: 'badge-green', deducted: 'badge-gray' }[k.status] || 'badge-gray';
+      return `
+        <tr>
+          <td><strong>${k.employees?.nama || '—'}</strong></td>
+          <td>${getPeriodLabel(k.period)}</td>
+          <td class="text-right font-bold">${formatRupiah(k.jumlah)}</td>
+          <td class="text-sm">${k.keterangan || '—'}</td>
+          <td><span class="badge ${st}">${k.status}</span></td>
+          <td>
+            <div class="btn-group">
+              ${k.status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveKasbon('${k.id}')">Approve</button>` : ''}
+              <button class="btn btn-sm btn-danger" onclick="deleteKasbon('${k.id}')">Hapus</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openAddKasbon() {
+    openModal('modalKasbon');
+  }
+
+  async function saveKasbon() {
+    const data = {
+      employee_id: document.getElementById('kasbonEmployee').value,
+      period: document.getElementById('kasbonPeriod').value,
+      jumlah: Number(document.getElementById('kasbonJumlah').value) || 0,
+      keterangan: document.getElementById('kasbonKet').value,
+      status: 'pending',
+      created_by: currentEmployee.id,
+    };
+    if (!data.employee_id || !data.period || !data.jumlah) { showToast('Lengkapi data kasbon.', 'error'); return; }
+    try { await sbPost('kasbon_records', data, getToken()); } catch(e) { showToast('Gagal: ' + e.message, 'error'); return; }
+    showToast('Kasbon berhasil dicatat.', 'success');
+    closeModal('modalKasbon');
+    await loadKasbon();
+  }
+
+  async function approveKasbon(id) {
+    try { await sbPatch('kasbon_records', `?id=eq.${id}`, { status: 'approved' }, getToken()); } catch {}
+    showToast('Kasbon diapprove.', 'success');
+    await loadKasbon();
+  }
+
+  async function deleteKasbon(id) {
+    if (!confirm('Hapus catatan kasbon ini?')) return;
+    try { await sbDelete('kasbon_records', `?id=eq.${id}`, getToken()); } catch {}
+    showToast('Kasbon dihapus.', 'success');
+    await loadKasbon();
+  }
+</script>
+</body>
+</html>

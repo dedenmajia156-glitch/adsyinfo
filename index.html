@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+</head>
+<body class="login-page">
+
+  <div class="login-card fade-in">
+    <div class="login-logo">
+      <div class="login-logo-icon">ADS</div>
+      <div class="login-title">KPI & Gaji System</div>
+      <div class="login-subtitle">PT. Albanna Digital Sulaiman Yogyakarta</div>
+    </div>
+
+    <!-- Tab Toggle -->
+    <div style="display:flex;background:#f1f5f9;border-radius:10px;padding:4px;margin-bottom:24px;gap:4px;">
+      <button id="tabLogin" onclick="showTab('login')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:#4f46e5;color:#fff;transition:all .2s;">Masuk</button>
+      <button id="tabDaftar" onclick="showTab('daftar')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all .2s;">Daftar</button>
+    </div>
+
+    <!-- Form Login -->
+    <form id="loginForm">
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input type="email" id="email" class="form-control" placeholder="nama@albanna.co.id" required autocomplete="email">
+      </div>
+      <div class="form-group" style="margin-bottom:6px;">
+        <label class="form-label" for="password">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Masukkan password" required autocomplete="current-password">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" class="login-btn" id="loginBtn">
+        <span id="loginBtnText">Masuk</span>
+      </button>
+    </form>
+
+    <!-- Form Daftar -->
+    <form id="daftarForm" style="display:none;">
+      <div class="form-group">
+        <label class="form-label" for="regNama">Nama Lengkap</label>
+        <input type="text" id="regNama" class="form-control" placeholder="Ahmad Baihaqi" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="regEmail">Email</label>
+        <input type="email" id="regEmail" class="form-control" placeholder="nama@albanna.co.id" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="regDivisi">Divisi</label>
+        <select id="regDivisi" class="form-control" onchange="onDivisiChange()" required>
+          <option value="">Pilih Divisi</option>
+        </select>
+      </div>
+      <div class="form-group" id="jabatanGroup" style="display:none;">
+        <label class="form-label" for="regJabatan">Jabatan</label>
+        <select id="regJabatan" class="form-control">
+          <option value="">Pilih Jabatan</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="regWA">Nomor WhatsApp</label>
+        <input type="tel" id="regWA" class="form-control" placeholder="08123456789" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="regPassword">Password</label>
+        <input type="password" id="regPassword" class="form-control" placeholder="Minimal 6 karakter" required minlength="6">
+      </div>
+      <div class="form-group" style="margin-bottom:6px;">
+        <label class="form-label" for="regConfirm">Konfirmasi Password</label>
+        <input type="password" id="regConfirm" class="form-control" placeholder="Ulangi password" required>
+      </div>
+      <div class="login-error" id="daftarError"></div>
+      <div class="login-error" id="daftarSuccess" style="display:none;background:#dcfce7;color:#166534;border-color:#bbf7d0;"></div>
+      <button type="submit" class="login-btn" id="daftarBtn">
+        <span id="daftarBtnText">Buat Akun</span>
+      </button>
+    </form>
+
+    <div style="text-align:center;margin-top:20px;font-size:12px;color:#94a3b8;">
+      &copy; 2026 Albanna Digital. All rights reserved.
+    </div>
+  </div>
+
+  <script>
+    let allDivisions = [];
+    let allJabatan = [];
+
+    // Check if already logged in
+    (async () => {
+      if (!isLoggedIn()) return;
+      try {
+        const emp = await sbGet('employees', `?select=role&user_id=eq.${getUserId()}&limit=1`, getToken());
+        if (emp && emp[0]) window.location.href = '/dashboard.html';
+      } catch {}
+    })();
+
+    // Load divisi & jabatan saat halaman daftar dibuka
+    async function loadStruktur() {
+      try {
+        const [divs, jabs] = await Promise.all([
+          sbGet('divisions', '?select=*&order=nama'),
+          sbGet('jabatan', '?select=*&order=nama')
+        ]);
+        allDivisions = divs || [];
+        allJabatan = jabs || [];
+
+        const divEl = document.getElementById('regDivisi');
+        divEl.innerHTML = '<option value="">Pilih Divisi</option>' +
+          allDivisions.map(d => `<option value="${d.id}">${d.nama}</option>`).join('');
+      } catch (err) {
+        console.error('Gagal load struktur:', err);
+      }
+    }
+
+    function onDivisiChange() {
+      const divId = document.getElementById('regDivisi').value;
+      const jabEl = document.getElementById('regJabatan');
+      const jabGroup = document.getElementById('jabatanGroup');
+
+      if (!divId) {
+        jabGroup.style.display = 'none';
+        jabEl.innerHTML = '<option value="">Pilih Jabatan</option>';
+        return;
+      }
+
+      const filtered = allJabatan.filter(j => j.division_id === divId);
+      jabEl.innerHTML = filtered.length
+        ? '<option value="">Pilih Jabatan</option>' + filtered.map(j => `<option value="${j.id}">${j.nama}</option>`).join('')
+        : '<option value="">Tidak ada jabatan di divisi ini</option>';
+
+      jabGroup.style.display = '';
+    }
+
+    // Tab toggle
+    function showTab(tab) {
+      const isLogin = tab === 'login';
+      document.getElementById('loginForm').style.display = isLogin ? '' : 'none';
+      document.getElementById('daftarForm').style.display = isLogin ? 'none' : '';
+      document.getElementById('tabLogin').style.background = isLogin ? '#4f46e5' : 'transparent';
+      document.getElementById('tabLogin').style.color = isLogin ? '#fff' : '#64748b';
+      document.getElementById('tabDaftar').style.background = isLogin ? 'transparent' : '#4f46e5';
+      document.getElementById('tabDaftar').style.color = isLogin ? '#64748b' : '#fff';
+      if (!isLogin) {
+        document.getElementById('jabatanGroup').style.display = 'none';
+        document.getElementById('regJabatan').innerHTML = '<option value="">Pilih Jabatan</option>';
+        loadStruktur();
+      }
+    }
+
+    // Login
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('loginBtn');
+      const btnText = document.getElementById('loginBtnText');
+      const errorEl = document.getElementById('loginError');
+
+      btn.disabled = true;
+      btnText.textContent = 'Memproses...';
+      errorEl.style.display = 'none';
+
+      try {
+        const session = await authSignIn(email, password);
+        saveSession(session);
+
+        // Check employee record
+        const empArr = await sbGet('employees', `?select=role,status&user_id=eq.${session.user.id}&limit=1`, session.access_token);
+        const emp = empArr && empArr[0];
+
+        if (!emp) {
+          await authSignOut();
+          throw new Error('Akun karyawan tidak ditemukan. Hubungi HR.');
+        }
+        if (emp.status !== 'aktif') {
+          await authSignOut();
+          throw new Error('Akun Anda belum aktif. Hubungi HR.');
+        }
+
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        errorEl.textContent = err.message || 'Email atau password salah.';
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btnText.textContent = 'Masuk';
+      }
+    });
+
+    // Daftar
+    document.getElementById('daftarForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nama = document.getElementById('regNama').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const wa_number = document.getElementById('regWA').value.trim();
+      const jabatan_id = document.getElementById('regJabatan').value;
+      const password = document.getElementById('regPassword').value;
+      const confirm = document.getElementById('regConfirm').value;
+      const btn = document.getElementById('daftarBtn');
+      const btnText = document.getElementById('daftarBtnText');
+      const errorEl = document.getElementById('daftarError');
+      const successEl = document.getElementById('daftarSuccess');
+
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      if (password !== confirm) {
+        errorEl.textContent = 'Password dan konfirmasi tidak cocok.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (!jabatan_id) {
+        errorEl.textContent = 'Pilih divisi dan jabatan terlebih dahulu.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.textContent = 'Memproses...';
+
+      try {
+        const signUpResult = await authSignUp(email, password);
+        const userId = signUpResult.user?.id || signUpResult.id;
+
+        if (!userId) throw new Error('Gagal mendaftarkan akun.');
+
+        // Need a token — for signup we may not have access_token if email confirm required
+        // Insert employee using anon key (requires RLS policy allowing anon insert or authenticated)
+        const token = signUpResult.access_token || null;
+        await sbPost('employees', {
+          user_id: userId,
+          nama,
+          email,
+          wa_number,
+          jabatan_id,
+          role: 'karyawan',
+          status: 'aktif'
+        }, token);
+
+        // Sign out
+        if (signUpResult.access_token) {
+          await authSignOut();
+        }
+
+        successEl.textContent = 'Akun berhasil dibuat! Silakan login. HR akan melengkapi data gaji kamu.';
+        successEl.style.display = 'block';
+        document.getElementById('daftarForm').reset();
+        document.getElementById('regJabatan').innerHTML = '<option value="">Pilih jabatan dulu</option>';
+      } catch (err) {
+        errorEl.textContent = err.message || 'Gagal membuat akun. Coba lagi.';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Buat Akun';
+      }
+    });
+  </script>
+</body>
+</html>

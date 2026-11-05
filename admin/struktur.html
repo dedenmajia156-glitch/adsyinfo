@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Divisi & Jabatan — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div>
+          <div class="page-title">Divisi & Jabatan</div>
+          <div class="page-subtitle">Kelola struktur organisasi perusahaan</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+
+    <main class="page-content fade-in">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+        <!-- DIVISI -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Divisi</div>
+              <div class="card-subtitle" id="divisiCount">Memuat...</div>
+            </div>
+            <button class="btn btn-primary" onclick="openAddDivisi()">+ Tambah Divisi</button>
+          </div>
+          <div id="divisiList" style="margin-top:8px;">
+            <div style="text-align:center;padding:40px;color:#94a3b8;">Memuat...</div>
+          </div>
+        </div>
+
+        <!-- JABATAN -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Jabatan</div>
+              <div class="card-subtitle" id="jabatanCount">Memuat...</div>
+            </div>
+            <button class="btn btn-primary" onclick="openAddJabatan()">+ Tambah Jabatan</button>
+          </div>
+          <div style="margin-bottom:12px;">
+            <select class="form-control" id="filterDivisi" onchange="loadJabatan()" style="width:100%;">
+              <option value="">Semua Divisi</option>
+            </select>
+          </div>
+          <div id="jabatanList">
+            <div style="text-align:center;padding:40px;color:#94a3b8;">Memuat...</div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal Divisi -->
+<div class="modal-overlay" id="modalDivisi" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="divisiModalTitle">Tambah Divisi</div>
+      <button class="modal-close" onclick="closeModal('modalDivisi')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="divisiId">
+      <div class="form-group">
+        <label class="form-label">Nama Divisi <span style="color:#ef4444">*</span></label>
+        <input type="text" id="divisiNama" class="form-control" placeholder="contoh: Akuisisi, CS, CRM...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalDivisi')">Batal</button>
+      <button class="btn btn-primary" onclick="saveDivisi()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Jabatan -->
+<div class="modal-overlay" id="modalJabatan" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="jabatanModalTitle">Tambah Jabatan</div>
+      <button class="modal-close" onclick="closeModal('modalJabatan')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="jabatanId">
+      <div class="form-group">
+        <label class="form-label">Divisi <span style="color:#ef4444">*</span></label>
+        <select id="jabatanDivisi" class="form-control">
+          <option value="">Pilih Divisi</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nama Jabatan <span style="color:#ef4444">*</span></label>
+        <input type="text" id="jabatanNama" class="form-control" placeholder="contoh: ADV, CS Web, CS Form...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalJabatan')">Batal</button>
+      <button class="btn btn-primary" onclick="saveJabatan()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Konfirmasi Hapus -->
+<div class="modal-overlay" id="modalHapus" style="display:none;">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <div class="modal-title">Konfirmasi Hapus</div>
+      <button class="modal-close" onclick="closeModal('modalHapus')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="hapusText" style="color:#475569;margin:0;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalHapus')">Batal</button>
+      <button class="btn btn-danger" id="hapusConfirmBtn">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let divisions = [];
+let jabatans = [];
+let currentEmployee = null;
+
+(async () => {
+  currentEmployee = await requireRole(['hr', 'ceo']);
+  if (!currentEmployee) return;
+  initSidebar(currentEmployee);
+  await loadAll();
+})();
+
+async function loadAll() {
+  await Promise.all([loadDivisi(), loadJabatan()]);
+}
+
+async function loadDivisi() {
+  try {
+    divisions = await sbGet('divisions', '?select=*&order=nama', getToken());
+  } catch(e) { showToast('Gagal memuat divisi', 'error'); return; }
+
+  document.getElementById('divisiCount').textContent = `${divisions.length} divisi`;
+
+  // Update filter dropdown
+  const filterEl = document.getElementById('filterDivisi');
+  const filterVal = filterEl.value;
+  filterEl.innerHTML = '<option value="">Semua Divisi</option>' +
+    divisions.map(d => `<option value="${d.id}" ${filterVal === d.id ? 'selected' : ''}>${d.nama}</option>`).join('');
+
+  // Update jabatan modal dropdown
+  const jabDivEl = document.getElementById('jabatanDivisi');
+  const jabDivVal = jabDivEl.value;
+  jabDivEl.innerHTML = '<option value="">Pilih Divisi</option>' +
+    divisions.map(d => `<option value="${d.id}" ${jabDivVal === d.id ? 'selected' : ''}>${d.nama}</option>`).join('');
+
+  renderDivisi();
+}
+
+function renderDivisi() {
+  const list = document.getElementById('divisiList');
+  if (!divisions.length) {
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;">Belum ada divisi</div>';
+    return;
+  }
+
+  list.innerHTML = `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nama Divisi</th>
+          <th>Jumlah Jabatan</th>
+          <th style="width:100px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${divisions.map(d => {
+          const count = jabatans.filter(j => j.division_id === d.id).length;
+          return `
+            <tr>
+              <td><strong>${d.nama}</strong></td>
+              <td><span class="badge badge-blue">${count} jabatan</span></td>
+              <td>
+                <div style="display:flex;gap:6px;justify-content:flex-end;">
+                  <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="editDivisi('${d.id}', '${d.nama.replace(/'/g, "\\'")}')">Edit</button>
+                  <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="confirmHapusDivisi('${d.id}', '${d.nama.replace(/'/g, "\\'")}')">Hapus</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function loadJabatan() {
+  const filterDivisi = document.getElementById('filterDivisi')?.value || '';
+
+  let queryStr = '?select=*,divisions(nama)&order=nama';
+  if (filterDivisi) queryStr += `&division_id=eq.${filterDivisi}`;
+
+  try {
+    jabatans = await sbGet('jabatan', queryStr, getToken());
+  } catch(e) { showToast('Gagal memuat jabatan', 'error'); return; }
+  jabatans = jabatans || [];
+
+  document.getElementById('jabatanCount').textContent = `${jabatans.length} jabatan`;
+  renderJabatan();
+}
+
+function renderJabatan() {
+  const list = document.getElementById('jabatanList');
+  if (!jabatans.length) {
+    list.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;">Belum ada jabatan</div>';
+    return;
+  }
+
+  list.innerHTML = `
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nama Jabatan</th>
+          <th>Divisi</th>
+          <th style="width:100px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${jabatans.map(j => `
+          <tr>
+            <td><strong>${j.nama}</strong></td>
+            <td><span class="badge badge-purple">${j.divisions?.nama || '-'}</span></td>
+            <td>
+              <div style="display:flex;gap:6px;justify-content:flex-end;">
+                <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="editJabatan('${j.id}', '${j.nama.replace(/'/g, "\\'")}', '${j.division_id}')">Edit</button>
+                <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="confirmHapusJabatan('${j.id}', '${j.nama.replace(/'/g, "\\'")}')">Hapus</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ── DIVISI CRUD ──
+function openAddDivisi() {
+  document.getElementById('divisiId').value = '';
+  document.getElementById('divisiNama').value = '';
+  document.getElementById('divisiModalTitle').textContent = 'Tambah Divisi';
+  openModal('modalDivisi');
+  setTimeout(() => document.getElementById('divisiNama').focus(), 100);
+}
+
+function editDivisi(id, name) {
+  document.getElementById('divisiId').value = id;
+  document.getElementById('divisiNama').value = name;
+  document.getElementById('divisiModalTitle').textContent = 'Edit Divisi';
+  openModal('modalDivisi');
+}
+
+async function saveDivisi() {
+  const id = document.getElementById('divisiId').value;
+  const name = document.getElementById('divisiNama').value.trim();
+
+  if (!name) { showToast('Nama divisi wajib diisi', 'warning'); return; }
+
+  try {
+    if (id) {
+      await sbPatch('divisions', `?id=eq.${id}`, { nama: name }, getToken());
+    } else {
+      await sbPost('divisions', { nama: name }, getToken());
+    }
+  } catch(e) { showToast('Gagal menyimpan divisi: ' + e.message, 'error'); return; }
+
+  showToast(id ? 'Divisi berhasil diupdate' : 'Divisi berhasil ditambahkan', 'success');
+  closeModal('modalDivisi');
+  await loadAll();
+}
+
+function confirmHapusDivisi(id, name) {
+  const jabCount = jabatans.filter(j => j.division_id === id).length;
+  const text = jabCount > 0
+    ? `Divisi "${name}" memiliki ${jabCount} jabatan. Hapus semua jabatan dulu sebelum menghapus divisi ini.`
+    : `Yakin ingin menghapus divisi "${name}"?`;
+
+  document.getElementById('hapusText').textContent = text;
+  const btn = document.getElementById('hapusConfirmBtn');
+
+  if (jabCount > 0) {
+    btn.style.display = 'none';
+  } else {
+    btn.style.display = '';
+    btn.onclick = () => hapusDivisi(id);
+  }
+  openModal('modalHapus');
+}
+
+async function hapusDivisi(id) {
+  try {
+    await sbDelete('divisions', `?id=eq.${id}`, getToken());
+  } catch(e) { showToast('Gagal menghapus: ' + e.message, 'error'); return; }
+  showToast('Divisi berhasil dihapus', 'success');
+  closeModal('modalHapus');
+  await loadAll();
+}
+
+// ── JABATAN CRUD ──
+function openAddJabatan() {
+  document.getElementById('jabatanId').value = '';
+  document.getElementById('jabatanNama').value = '';
+  document.getElementById('jabatanDivisi').value = '';
+  document.getElementById('jabatanModalTitle').textContent = 'Tambah Jabatan';
+  openModal('modalJabatan');
+  setTimeout(() => document.getElementById('jabatanNama').focus(), 100);
+}
+
+function editJabatan(id, name, divisionId) {
+  document.getElementById('jabatanId').value = id;
+  document.getElementById('jabatanNama').value = name;
+  document.getElementById('jabatanDivisi').value = divisionId;
+  document.getElementById('jabatanModalTitle').textContent = 'Edit Jabatan';
+  openModal('modalJabatan');
+}
+
+async function saveJabatan() {
+  const id = document.getElementById('jabatanId').value;
+  const name = document.getElementById('jabatanNama').value.trim();
+  const division_id = document.getElementById('jabatanDivisi').value;
+
+  if (!name) { showToast('Nama jabatan wajib diisi', 'warning'); return; }
+  if (!division_id) { showToast('Pilih divisi terlebih dahulu', 'warning'); return; }
+
+  try {
+    if (id) {
+      await sbPatch('jabatan', `?id=eq.${id}`, { nama: name, division_id }, getToken());
+    } else {
+      await sbPost('jabatan', { nama: name, division_id }, getToken());
+    }
+  } catch(e) { showToast('Gagal menyimpan jabatan: ' + e.message, 'error'); return; }
+
+  showToast(id ? 'Jabatan berhasil diupdate' : 'Jabatan berhasil ditambahkan', 'success');
+  closeModal('modalJabatan');
+  await loadAll();
+}
+
+function confirmHapusJabatan(id, name) {
+  document.getElementById('hapusText').textContent = `Yakin ingin menghapus jabatan "${name}"? Karyawan dengan jabatan ini perlu diupdate manual.`;
+  const btn = document.getElementById('hapusConfirmBtn');
+  btn.style.display = '';
+  btn.onclick = () => hapusJabatan(id);
+  openModal('modalHapus');
+}
+
+async function hapusJabatan(id) {
+  try {
+    await sbDelete('jabatan', `?id=eq.${id}`, getToken());
+  } catch(e) { showToast('Gagal menghapus: ' + e.message, 'error'); return; }
+  showToast('Jabatan berhasil dihapus', 'success');
+  closeModal('modalHapus');
+  await loadAll();
+}
+</script>
+</body>
+</html>

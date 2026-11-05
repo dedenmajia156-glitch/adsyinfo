@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Input KPI — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <style>
+    .kpi-input-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+    .kpi-form-area { min-width: 0; }
+    .summary-panel { position: sticky; top: 80px; }
+    .product-config-row { background:var(--gray-50); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; margin-bottom:10px; }
+    .product-config-row .product-name { font-weight:700; margin-bottom:10px; color:var(--gray-800); }
+    .indicator-input-row { display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:8px; align-items:center; padding:10px 0; border-bottom:1px solid var(--gray-100); }
+    .indicator-input-row:last-child { border-bottom:none; }
+    .ind-name { font-size:13px; font-weight:600; color:var(--gray-700); }
+    .ind-name small { display:block; font-size:11px; color:var(--gray-400); font-weight:400; }
+    .ind-pt { font-size:12px; color:var(--gray-400); text-align:right; }
+    .ind-poin { font-weight:800; font-size:14px; text-align:right; }
+    .section-block { border:1px solid var(--border); border-radius:var(--radius); margin-bottom:20px; overflow:hidden; }
+    .section-block-header { padding:14px 20px; background:var(--gray-50); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+    .section-block-body { padding:16px 20px; }
+    .step-selector { display:flex; gap:0; margin-bottom:24px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .step-btn { flex:1; padding:14px; background:var(--white); border:none; font-size:14px; font-weight:600; color:var(--gray-500); cursor:pointer; border-right:1px solid var(--border); transition:all 0.2s; }
+    .step-btn:last-child { border-right:none; }
+    .step-btn.active { background:var(--primary); color:white; }
+    .step-content { display:none; }
+    .step-content.active { display:block; }
+    @media(max-width:900px){ .kpi-input-layout { grid-template-columns:1fr; } }
+  </style>
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+  <script src="/js/kpi-calc.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">Input KPI</div><div class="page-subtitle">Rekam penilaian kinerja karyawan</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <!-- STEP 1: Select Employee & Period -->
+      <div class="card mb-6" id="step1Card">
+        <div class="card-header">
+          <div class="card-title">1. Pilih Karyawan & Periode</div>
+        </div>
+        <div class="card-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="form-label">Karyawan <span class="required">*</span></label>
+              <select class="form-control" id="employeeSelect" onchange="onEmployeeChange()">
+                <option value="">— Pilih Karyawan —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Periode <span class="required">*</span></label>
+              <input type="month" class="form-control" id="periodInput" onchange="onPeriodChange()">
+            </div>
+          </div>
+          <div id="employeeInfo" style="display:none;" class="alert alert-info mt-3"></div>
+          <div id="templateInfo" style="display:none;" class="alert alert-success mt-3"></div>
+          <div class="mt-3">
+            <button class="btn btn-primary" id="loadKPIBtn" onclick="loadKPIForm()" disabled>Lanjut ke Form KPI</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Products Section -->
+      <div id="step2Card" style="display:none;">
+        <div class="card mb-6">
+          <div class="card-header">
+            <div>
+              <div class="card-title">2. Produk yang Ditangani</div>
+              <div class="card-subtitle">Atur produk, tracehold, dan target minimal per produk</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="openAddProduct()">+ Tambah Produk</button>
+          </div>
+          <div class="card-body" id="productList">
+            <div class="text-muted text-sm">Belum ada produk untuk periode ini.</div>
+          </div>
+        </div>
+
+        <!-- STEP 3: KPI Form -->
+        <div class="kpi-input-layout">
+          <div class="kpi-form-area">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">3. Form Penilaian KPI</div>
+                <div class="card-subtitle" id="formSubtitle"></div>
+              </div>
+              <div class="card-body" id="kpiFormBody">
+                <div class="text-muted text-sm">Memuat form...</div>
+              </div>
+              <div class="card-footer">
+                <div class="btn-group">
+                  <button class="btn btn-secondary" onclick="saveKPI('draft')">&#128190; Simpan Draft</button>
+                  <button class="btn btn-primary" onclick="saveKPI('submitted')">&#128228; Submit KPI</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary Panel -->
+          <div class="summary-panel">
+            <div class="card-title" style="margin-bottom:14px;">Ringkasan Poin</div>
+            <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px;">
+              <div class="summary-total">
+                <div class="summary-total-label">Total Poin</div>
+                <div class="summary-total-value" id="summaryTotalPoin">0</div>
+                <div class="summary-total-grade" id="summaryGrade">—</div>
+                <div style="margin-top:6px;font-size:13px;color:var(--gray-500);">Pengkali: <strong id="summaryMultiplier">—</strong></div>
+              </div>
+              <ul class="summary-breakdown" id="summaryBreakdown"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Modal: Add Product -->
+<div class="modal-overlay" id="modalAddProduct">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Tambah Produk ke Periode Ini</div>
+      <button class="modal-close" onclick="closeModal('modalAddProduct')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Produk</label>
+        <select class="form-control" id="productSelect"></select>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">Target Sales</label>
+          <input type="number" class="form-control" id="productSalesTarget" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tracehold CAQ</label>
+          <input type="number" class="form-control" id="productTracehold" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target Minimal CAQ</label>
+          <input type="number" class="form-control" id="productTargetMinimal" placeholder="0">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalAddProduct')">Batal</button>
+      <button class="btn btn-primary" onclick="saveEmployeeProduct()">Tambah</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let selectedEmployee = null;
+  let selectedPeriod = '';
+  let currentTemplate = null;
+  let employeeProducts = [];
+  let allProducts = [];
+  let pengkaliRules = [];
+  let kpiPeriodId = null;
+  let kpiRecordsMap = {}; // indicatorId -> achieve value
+
+  (async () => {
+    currentEmployee = await requireRole(['hr', 'ceo']);
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+
+    // Set default period to current month
+    const now = new Date();
+    document.getElementById('periodInput').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    selectedPeriod = getCurrentPeriod();
+
+    await Promise.all([loadEmployees(), loadAllProducts(), loadPengkali()]);
+  })();
+
+  async function loadEmployees() {
+    let data;
+    try { data = await sbGet('employees', '?select=id,nama,jabatan_id,jabatan(nama)&status=eq.aktif&order=nama', getToken()); } catch { data = []; }
+    const sel = document.getElementById('employeeSelect');
+    (data || []).forEach(e => {
+      sel.add(new Option(`${e.nama} — ${e.jabatan?.nama || 'Tanpa Jabatan'}`, e.id));
+    });
+  }
+
+  async function loadAllProducts() {
+    try { allProducts = await sbGet('products', '?select=*&status=eq.aktif&order=nama', getToken()); } catch { allProducts = []; }
+    const sel = document.getElementById('productSelect');
+    allProducts.forEach(p => sel.add(new Option(p.nama, p.id)));
+  }
+
+  async function loadPengkali() {
+    try { pengkaliRules = await sbGet('pengkali_rules', '?select=*&order=min_poin.desc', getToken()); } catch { pengkaliRules = []; }
+  }
+
+  async function onEmployeeChange() {
+    const empId = document.getElementById('employeeSelect').value;
+    if (!empId) { selectedEmployee = null; document.getElementById('loadKPIBtn').disabled = true; return; }
+
+    let arr;
+    try { arr = await sbGet('employees', `?select=*,jabatan(id,nama,divisions(nama))&id=eq.${empId}&limit=1`, getToken()); } catch { arr = []; }
+    selectedEmployee = arr?.[0];
+    const data = selectedEmployee;
+
+    document.getElementById('employeeInfo').style.display = 'block';
+    document.getElementById('employeeInfo').textContent =
+      `${data.nama} — ${data.jabatan?.nama || '—'} (${data.jabatan?.divisions?.nama || '—'}) | Gaji Pokok: ${formatRupiah(data.gaji_pokok)}`;
+
+    await findTemplate();
+    checkLoadBtn();
+  }
+
+  async function onPeriodChange() {
+    selectedPeriod = document.getElementById('periodInput').value.replace('-', '-');
+    // keep as YYYY-MM
+    checkLoadBtn();
+  }
+
+  async function findTemplate() {
+    if (!selectedEmployee?.jabatan_id) return;
+    let arr;
+    try { arr = await sbGet('kpi_templates', `?select=id,nama&jabatan_id=eq.${selectedEmployee.jabatan_id}&is_active=eq.true&limit=1`, getToken()); } catch {}
+    const data = arr?.[0];
+
+    if (data) {
+      document.getElementById('templateInfo').style.display = 'block';
+      document.getElementById('templateInfo').textContent = `Template ditemukan: "${data.nama}"`;
+    } else {
+      document.getElementById('templateInfo').style.display = 'block';
+      document.getElementById('templateInfo').className = 'alert alert-warning mt-3';
+      document.getElementById('templateInfo').textContent = 'Tidak ada template aktif untuk jabatan ini.';
+    }
+  }
+
+  function checkLoadBtn() {
+    const empId = document.getElementById('employeeSelect').value;
+    const period = document.getElementById('periodInput').value;
+    document.getElementById('loadKPIBtn').disabled = !(empId && period);
+  }
+
+  async function loadKPIForm() {
+    const empId = document.getElementById('employeeSelect').value;
+    const period = document.getElementById('periodInput').value; // YYYY-MM
+
+    showLoading(true);
+    try {
+      // Load template
+      let tmplArr;
+      try { tmplArr = await sbGet('kpi_templates', `?select=id,nama,omzet_target,kpi_sections(id,nama,type,urutan,kpi_indicators(id,nama,type,bobot,point_total,config,urutan))&jabatan_id=eq.${selectedEmployee.jabatan_id}&is_active=eq.true&limit=1`, getToken()); } catch {}
+      const tmpl = tmplArr?.[0];
+
+      if (!tmpl) { showToast('Template KPI tidak ditemukan untuk jabatan ini.', 'error'); showLoading(false); return; }
+      currentTemplate = tmpl;
+
+      // Load employee products for this period
+      try { employeeProducts = await sbGet('employee_products', `?select=*,products(id,nama,unit)&employee_id=eq.${empId}&period=eq.${period}`, getToken()) || []; } catch { employeeProducts = []; }
+
+      // Load existing KPI period
+      let existKPI;
+      try { const arr = await sbGet('kpi_periods', `?select=id,status,notes&employee_id=eq.${empId}&period=eq.${period}&limit=1`, getToken()); existKPI = arr?.[0]; } catch {}
+
+      if (existKPI) {
+        kpiPeriodId = existKPI.id;
+        // Load existing records
+        let records;
+        try { records = await sbGet('kpi_records', `?select=*&kpi_period_id=eq.${kpiPeriodId}`, getToken()); } catch {}
+        kpiRecordsMap = {};
+        (records || []).forEach(r => {
+          const key = r.product_id ? `${r.indicator_id}_${r.product_id}` : r.indicator_id;
+          kpiRecordsMap[key] = r.achieve;
+        });
+      } else {
+        kpiPeriodId = null;
+        kpiRecordsMap = {};
+      }
+
+      renderProductList();
+      renderKPIForm();
+      document.getElementById('step2Card').style.display = 'block';
+      document.getElementById('formSubtitle').textContent =
+        `${selectedEmployee.nama} — ${getPeriodLabel(period)}`;
+
+      updateSummary();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+
+  // ---- Product Management ----
+  function renderProductList() {
+    const container = document.getElementById('productList');
+    if (employeeProducts.length === 0) {
+      container.innerHTML = '<div class="text-muted text-sm">Belum ada produk. Klik "+ Tambah Produk" untuk menambahkan.</div>';
+      return;
+    }
+    container.innerHTML = employeeProducts.map(ep => `
+      <div class="product-config-row">
+        <div class="product-name">&#127758; ${ep.products?.nama || '—'}</div>
+        <div class="form-row-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;">Target Sales</label>
+            <input type="number" class="form-control" value="${ep.sales_target}" onchange="updateEPField('${ep.id}', 'sales_target', this.value)" placeholder="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;">Tracehold CAQ</label>
+            <input type="number" class="form-control" value="${ep.tracehold}" onchange="updateEPField('${ep.id}', 'tracehold', this.value)" placeholder="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:12px;">Target Minimal CAQ</label>
+            <input type="number" class="form-control" value="${ep.target_minimal}" onchange="updateEPField('${ep.id}', 'target_minimal', this.value)" placeholder="0">
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-sm btn-danger" onclick="removeProduct('${ep.id}')">Hapus Produk</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function updateEPField(id, field, value) {
+    const ep = employeeProducts.find(e => e.id === id);
+    if (ep) {
+      ep[field] = Number(value);
+      try { await sbPatch('employee_products', `?id=eq.${id}`, { [field]: Number(value) }, getToken()); } catch {}
+      renderKPIForm();
+      updateSummary();
+    }
+  }
+
+  function openAddProduct() {
+    document.getElementById('productSelect').value = '';
+    document.getElementById('productSalesTarget').value = '';
+    document.getElementById('productTracehold').value = '';
+    document.getElementById('productTargetMinimal').value = '';
+    openModal('modalAddProduct');
+  }
+
+  async function saveEmployeeProduct() {
+    const productId = document.getElementById('productSelect').value;
+    if (!productId) { showToast('Pilih produk terlebih dahulu.', 'error'); return; }
+
+    const data = {
+      employee_id: document.getElementById('employeeSelect').value,
+      product_id: productId,
+      period: document.getElementById('periodInput').value,
+      sales_target: Number(document.getElementById('productSalesTarget').value) || 0,
+      tracehold: Number(document.getElementById('productTracehold').value) || 0,
+      target_minimal: Number(document.getElementById('productTargetMinimal').value) || 0,
+    };
+
+    let saved;
+    try {
+      // Try insert, if conflict update
+      const existing = employeeProducts.find(e => e.product_id === data.product_id && e.period === data.period);
+      if (existing) {
+        await sbPatch('employee_products', `?id=eq.${existing.id}`, { sales_target: data.sales_target, tracehold: data.tracehold, target_minimal: data.target_minimal }, getToken());
+        Object.assign(existing, data);
+        saved = existing;
+      } else {
+        const arr = await sbPost('employee_products', data, getToken());
+        saved = Array.isArray(arr) ? arr[0] : arr;
+        // Reload to get products relation
+        const reloaded = await sbGet('employee_products', `?select=*,products(id,nama,unit)&id=eq.${saved.id}&limit=1`, getToken());
+        saved = reloaded?.[0] || saved;
+        employeeProducts.push(saved);
+      }
+    } catch(e) { showToast('Gagal: ' + e.message, 'error'); return; }
+
+    const existIdx = employeeProducts.findIndex(e => e.id === saved.id);
+    if (existIdx >= 0) employeeProducts[existIdx] = saved;
+
+    renderProductList();
+    renderKPIForm();
+    updateSummary();
+    closeModal('modalAddProduct');
+    showToast('Produk berhasil ditambahkan.', 'success');
+  }
+
+  async function removeProduct(id) {
+    if (!confirm('Hapus produk dari periode ini?')) return;
+    try { await sbDelete('employee_products', `?id=eq.${id}`, getToken()); } catch {}
+    employeeProducts = employeeProducts.filter(e => e.id !== id);
+    renderProductList();
+    renderKPIForm();
+    updateSummary();
+    showToast('Produk dihapus.', 'success');
+  }
+
+  // ---- KPI Form Rendering ----
+  function renderKPIForm() {
+    if (!currentTemplate) return;
+    const sections = (currentTemplate.kpi_sections || []).sort((a, b) => a.urutan - b.urutan);
+    const numProducts = employeeProducts.length;
+
+    let html = '';
+    sections.forEach(section => {
+      const indicators = (section.kpi_indicators || []).sort((a, b) => a.urutan - b.urutan);
+      html += `
+        <div class="section-block">
+          <div class="section-block-header">
+            <span class="badge ${getSectionBadge(section.type)}">${section.type.toUpperCase()}</span>
+            <strong>${section.nama}</strong>
+          </div>
+          <div class="section-block-body">
+      `;
+
+      indicators.forEach(ind => {
+        const isPerProduct = ['caq', 'botol', 'closing', 'retur'].includes(ind.type);
+
+        if (isPerProduct && numProducts > 0) {
+          employeeProducts.forEach(ep => {
+            html += renderProductIndicatorRow(ind, ep, numProducts);
+          });
+        } else if (ind.type === 'retur_bonus') {
+          html += renderReturBonusRow(ind);
+        } else {
+          html += renderSimpleIndicatorRow(ind);
+        }
+      });
+
+      html += `</div></div>`;
+    });
+
+    document.getElementById('kpiFormBody').innerHTML = html || '<div class="text-muted">Tidak ada indikator dalam template ini.</div>';
+  }
+
+  function getSectionBadge(type) {
+    const map = { basic:'badge-blue', goal:'badge-green', character:'badge-indigo', pengurangan:'badge-red' };
+    return map[type] || 'badge-gray';
+  }
+
+  function renderSimpleIndicatorRow(ind) {
+    const key = ind.id;
+    const val = kpiRecordsMap[key] !== undefined ? kpiRecordsMap[key] : '';
+    const pt = Number(ind.point_total);
+    const poin = computePoin(ind, val, null);
+    const poinClass = poin > 0 ? 'kpi-poin-positive' : poin < 0 ? 'kpi-poin-negative' : 'kpi-poin-zero';
+
+    let inputHtml = '';
+    if (ind.type === 'challenge') {
+      inputHtml = `
+        <select class="form-control" id="inp_${key}" onchange="onInputChange('${key}', null)" style="width:100px;">
+          <option value="0" ${val==0?'selected':''}>0</option>
+          <option value="1" ${val==1?'selected':''}>1</option>
+          <option value="2" ${val==2?'selected':''}>2</option>
+          <option value="3" ${val>=3?'selected':''}>3+</option>
+        </select>
+      `;
+    } else if (ind.type === 'sop' || ind.type === 'linear') {
+      inputHtml = `<input type="number" class="form-control" id="inp_${key}" value="${val}" onchange="onInputChange('${key}', null)" style="width:100px;" min="0" max="100" placeholder="%">`;
+    } else {
+      inputHtml = `<input type="number" class="form-control" id="inp_${key}" value="${val}" onchange="onInputChange('${key}', null)" style="width:100px;" min="0" placeholder="0">`;
+    }
+
+    return `
+      <div class="indicator-input-row">
+        <div class="ind-name">${ind.nama}<small>${typeLabel(ind.type)}</small></div>
+        ${inputHtml}
+        <div class="ind-pt">${pt.toLocaleString('id')}</div>
+        <div class="ind-poin ${poinClass}" id="poin_${key}">${poin.toFixed(0)}</div>
+      </div>
+    `;
+  }
+
+  function renderProductIndicatorRow(ind, ep, numProducts) {
+    const key = `${ind.id}_${ep.product_id}`;
+    const val = kpiRecordsMap[key] !== undefined ? kpiRecordsMap[key] : '';
+    const poin = computePoin(ind, val, ep, numProducts);
+    const poinClass = poin > 0 ? 'kpi-poin-positive' : poin < 0 ? 'kpi-poin-negative' : 'kpi-poin-zero';
+
+    return `
+      <div class="indicator-input-row">
+        <div class="ind-name">
+          ${ind.nama}
+          <small>${ep.products?.nama} | ${typeLabel(ind.type)}</small>
+        </div>
+        <input type="number" class="form-control" id="inp_${key}" value="${val}" onchange="onInputChange('${ind.id}', '${ep.product_id}')" style="width:100px;" min="0" placeholder="0">
+        <div class="ind-pt">${Number(ind.point_total).toLocaleString('id')}</div>
+        <div class="ind-poin ${poinClass}" id="poin_${key}">${poin.toFixed(0)}</div>
+      </div>
+    `;
+  }
+
+  function renderReturBonusRow(ind) {
+    const totalRetur = employeeProducts.reduce((sum, ep) => {
+      const key = `retur_${ep.product_id}`;
+      return sum + (Number(kpiRecordsMap[`retur_ind_${ep.product_id}`]) || 0);
+    }, 0);
+    const poin = totalRetur === 0 ? Number(ind.point_total) : 0;
+    const poinClass = poin > 0 ? 'kpi-poin-positive' : 'kpi-poin-zero';
+    return `
+      <div class="indicator-input-row">
+        <div class="ind-name">${ind.nama}<small>Otomatis — jika total retur = 0</small></div>
+        <div style="font-size:12px;color:var(--gray-400);">Auto</div>
+        <div class="ind-pt">${Number(ind.point_total).toLocaleString('id')}</div>
+        <div class="ind-poin ${poinClass}" id="poin_${ind.id}">${poin.toFixed(0)}</div>
+      </div>
+    `;
+  }
+
+  function typeLabel(type) {
+    const map = {
+      absensi: 'Absensi (hari)',
+      keterlambatan: 'Keterlambatan (jam)',
+      caq: 'CAQ (jumlah komplain)',
+      botol: 'Botol/unit',
+      closing: 'Closing paket',
+      linear: 'Persentase (%)',
+      challenge: 'Jumlah challenge',
+      sop: 'SOP (%)',
+      copyright_video: 'Jumlah pelanggaran',
+      copyright_lp: 'Jumlah pelanggaran',
+      copyright_gambar: 'Jumlah pelanggaran',
+      retur: 'Jumlah retur',
+      retur_bonus: 'Bonus retur'
+    };
+    return map[type] || type;
+  }
+
+  function computePoin(ind, achieve, ep, numProducts) {
+    if (achieve === '' || achieve === null || achieve === undefined) return 0;
+    const a = Number(achieve);
+    const numProd = numProducts || employeeProducts.length || 1;
+
+    switch (ind.type) {
+      case 'absensi': {
+        const ppu = ind.config?.point_per_unit || (ind.point_total / 30);
+        return KPICalc.calcAbsensi(a, ind.point_total, ppu, 5);
+      }
+      case 'keterlambatan': return KPICalc.calcKeterlambatan(a, ind.point_total);
+      case 'caq': {
+        if (!ep) return 0;
+        return KPICalc.calcCAQ(a, ep.tracehold, ep.target_minimal, ind.point_total, numProd);
+      }
+      case 'botol': {
+        const target = ep?.sales_target || 1;
+        return KPICalc.calcBotol(a, target, ind.point_total);
+      }
+      case 'closing': {
+        const target = ep?.sales_target || 1;
+        return KPICalc.calcClosing(a, target, ind.point_total);
+      }
+      case 'linear': return KPICalc.calcLinear(a, 100, ind.point_total);
+      case 'challenge': return KPICalc.calcChallenge(a, ind.point_total);
+      case 'sop': return KPICalc.calcSOP(a / 100, ind.point_total, ind.config?.threshold || 0.70);
+      case 'copyright_video':
+      case 'copyright_lp':
+      case 'copyright_gambar':
+        return KPICalc.calcCopyright(a, ind.config?.penalty_per_unit || 0);
+      case 'retur': {
+        if (!ep) return 0;
+        const salesAchieve = Number(document.getElementById(`inp_${getClosingKey(ep.product_id)}`)?.value) || 0;
+        return KPICalc.calcRetur(a, salesAchieve, ep.sales_target, ind.point_total, numProd);
+      }
+      default: return 0;
+    }
+  }
+
+  function getClosingKey(productId) {
+    const sections = currentTemplate?.kpi_sections || [];
+    for (const s of sections) {
+      for (const ind of (s.kpi_indicators || [])) {
+        if (ind.type === 'closing') return `${ind.id}_${productId}`;
+      }
+    }
+    return '';
+  }
+
+  function onInputChange(indicatorId, productId) {
+    const key = productId ? `${indicatorId}_${productId}` : indicatorId;
+    const val = document.getElementById(`inp_${key}`)?.value;
+    kpiRecordsMap[key] = val;
+
+    // Find indicator
+    const sections = currentTemplate?.kpi_sections || [];
+    let ind = null;
+    let ep = null;
+    for (const s of sections) {
+      for (const i of (s.kpi_indicators || [])) {
+        if (i.id === indicatorId) { ind = i; break; }
+      }
+    }
+    if (productId) ep = employeeProducts.find(e => e.product_id === productId);
+
+    if (ind) {
+      const poin = computePoin(ind, val, ep, employeeProducts.length);
+      const poinEl = document.getElementById(`poin_${key}`);
+      if (poinEl) {
+        poinEl.textContent = poin.toFixed(0);
+        poinEl.className = `ind-poin ${poin > 0 ? 'kpi-poin-positive' : poin < 0 ? 'kpi-poin-negative' : 'kpi-poin-zero'}`;
+      }
+    }
+
+    updateSummary();
+  }
+
+  function updateSummary() {
+    if (!currentTemplate) return;
+    const sections = currentTemplate.kpi_sections || [];
+    let grandTotal = 0;
+    const breakdown = [];
+
+    sections.forEach(section => {
+      const indicators = section.kpi_indicators || [];
+      let sectionTotal = 0;
+
+      indicators.forEach(ind => {
+        const isPerProduct = ['caq', 'botol', 'closing', 'retur'].includes(ind.type);
+        if (isPerProduct) {
+          employeeProducts.forEach(ep => {
+            const key = `${ind.id}_${ep.product_id}`;
+            const val = kpiRecordsMap[key] || 0;
+            sectionTotal += computePoin(ind, val, ep, employeeProducts.length);
+          });
+        } else if (ind.type === 'retur_bonus') {
+          // Auto
+          const totalRetur = employeeProducts.reduce((sum, ep) => {
+            const sections2 = currentTemplate.kpi_sections || [];
+            for (const s of sections2) {
+              for (const ri of (s.kpi_indicators || [])) {
+                if (ri.type === 'retur') {
+                  const rKey = `${ri.id}_${ep.product_id}`;
+                  sum += Number(kpiRecordsMap[rKey] || 0);
+                }
+              }
+            }
+            return sum;
+          }, 0);
+          sectionTotal += totalRetur === 0 ? Number(ind.point_total) : 0;
+        } else {
+          const key = ind.id;
+          const val = kpiRecordsMap[key] || 0;
+          sectionTotal += computePoin(ind, val, null, 0);
+        }
+      });
+
+      breakdown.push({ nama: section.nama, total: sectionTotal });
+      grandTotal += sectionTotal;
+    });
+
+    document.getElementById('summaryTotalPoin').textContent = Math.round(grandTotal).toLocaleString('id');
+
+    // Grade
+    const rule = pengkaliRules.find(r => grandTotal >= r.min_poin && grandTotal <= r.max_poin);
+    document.getElementById('summaryGrade').textContent = rule ? rule.label : 'Di Luar Rentang';
+    document.getElementById('summaryMultiplier').textContent = rule ? `${rule.multiplier}x` : '1x';
+
+    // Breakdown list
+    document.getElementById('summaryBreakdown').innerHTML = breakdown.map(b => `
+      <li>
+        <span>${b.nama}</span>
+        <span class="${b.total >= 0 ? 'kpi-poin-positive' : 'kpi-poin-negative'}">${Math.round(b.total).toLocaleString('id')}</span>
+      </li>
+    `).join('');
+  }
+
+  async function saveKPI(status) {
+    const empId = document.getElementById('employeeSelect').value;
+    const period = document.getElementById('periodInput').value;
+    if (!empId || !period) { showToast('Pilih karyawan dan periode terlebih dahulu.', 'error'); return; }
+
+    showLoading(true);
+    try {
+      // Calculate total poin
+      const sections = currentTemplate.kpi_sections || [];
+      let grandTotal = 0;
+      const records = [];
+
+      sections.forEach(section => {
+        const indicators = section.kpi_indicators || [];
+        indicators.forEach(ind => {
+          const isPerProduct = ['caq', 'botol', 'closing', 'retur'].includes(ind.type);
+          if (isPerProduct) {
+            employeeProducts.forEach(ep => {
+              const key = `${ind.id}_${ep.product_id}`;
+              const val = Number(kpiRecordsMap[key] || 0);
+              const poin = computePoin(ind, val, ep, employeeProducts.length);
+              grandTotal += poin;
+              records.push({ indicator_id: ind.id, product_id: ep.product_id, achieve: val, poin_get: poin });
+            });
+          } else if (ind.type === 'retur_bonus') {
+            const totalRetur = employeeProducts.reduce((sum, ep) => {
+              const rKey = Object.keys(kpiRecordsMap).find(k => k.endsWith(ep.product_id) && k.includes('retur'));
+              return sum + Number(kpiRecordsMap[rKey] || 0);
+            }, 0);
+            const poin = totalRetur === 0 ? Number(ind.point_total) : 0;
+            grandTotal += poin;
+            records.push({ indicator_id: ind.id, product_id: null, achieve: 0, poin_get: poin });
+          } else {
+            const key = ind.id;
+            const val = Number(kpiRecordsMap[key] || 0);
+            const poin = computePoin(ind, val, null, 0);
+            grandTotal += poin;
+            records.push({ indicator_id: ind.id, product_id: null, achieve: val, poin_get: poin });
+          }
+        });
+      });
+
+      // Upsert kpi_period
+      const periodData = {
+        employee_id: empId,
+        period,
+        template_id: currentTemplate.id,
+        total_poin: grandTotal,
+        status,
+        submitted_at: status === 'submitted' ? new Date().toISOString() : null,
+      };
+
+      let periodId = kpiPeriodId;
+      if (periodId) {
+        await sbPatch('kpi_periods', `?id=eq.${periodId}`, periodData, getToken());
+      } else {
+        const np = await sbPost('kpi_periods', periodData, getToken());
+        periodId = (Array.isArray(np) ? np[0] : np).id;
+        kpiPeriodId = periodId;
+      }
+
+      // Delete old records and insert new
+      await sbDelete('kpi_records', `?kpi_period_id=eq.${periodId}`, getToken());
+      const toInsert = records.map(r => ({ ...r, kpi_period_id: periodId }));
+      if (toInsert.length > 0) {
+        await sbPost('kpi_records', toInsert, getToken());
+      }
+
+      showToast(`KPI berhasil ${status === 'submitted' ? 'disubmit' : 'disimpan sebagai draft'}.`, 'success');
+    } catch (err) {
+      showToast('Gagal menyimpan: ' + err.message, 'error');
+    }
+    showLoading(false);
+  }
+</script>
+</body>
+</html>

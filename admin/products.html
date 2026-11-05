@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produk — KPI & Gaji System</title>
+  <link rel="stylesheet" href="/css/style.css?v=5">
+  <script src="/js/config.js?v=5"></script>
+  <script src="/js/auth.js?v=5"></script>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+        <div><div class="page-title">Produk</div><div class="page-subtitle">Manajemen data produk yang dijual</div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="user-badge">&#128100; <span id="topBarUser">...</span></div>
+      </div>
+    </header>
+    <main class="page-content fade-in">
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="search-input">
+            <span class="search-icon">&#128269;</span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Cari produk..." oninput="filterTable()" style="width:240px;padding-left:36px;">
+          </div>
+          <select class="form-control" id="statusFilter" style="width:150px;" onchange="loadProducts()">
+            <option value="">Semua Status</option>
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-primary" onclick="openAddProduct()">+ Tambah Produk</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Daftar Produk</div>
+          <div class="card-subtitle" id="productCount">Memuat...</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Produk</th>
+                <th>Satuan</th>
+                <th class="text-right">Harga Satuan</th>
+                <th class="text-right">Tracehold CAQ (%)</th>
+                <th class="text-right">Target Minimal CAQ (%)</th>
+                <th class="text-right">Target Botol</th>
+                <th class="text-right">Target Closing</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="productTableBody">
+              <tr class="loading-row"><td colspan="8"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal: Add/Edit Product -->
+<div class="modal-overlay" id="modalProduct">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalProductTitle">Tambah Produk</div>
+      <button class="modal-close" onclick="closeModal('modalProduct')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="productId">
+      <div class="form-group">
+        <label class="form-label">Nama Produk <span class="required">*</span></label>
+        <input type="text" class="form-control" id="prodNama" placeholder="Nama produk/layanan">
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Satuan</label>
+          <input type="text" class="form-control" id="prodUnit" placeholder="pcs, botol, paket, dll">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" id="prodStatus">
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Harga Satuan (Rp)</label>
+          <input type="number" class="form-control" id="prodHarga" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rasio Closing</label>
+          <input type="number" class="form-control" id="prodRasio" placeholder="1.0" min="0" step="0.01">
+        </div>
+      </div>
+      <div class="divider" style="margin:12px 0;border-top:1px solid var(--border);"></div>
+      <div class="alert alert-info" style="margin-bottom:12px;font-size:12px;">Konfigurasi KPI berikut digunakan sebagai nilai default di Input KPI Massal.</div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="form-label">Tracehold CAQ (%)</label>
+          <input type="number" class="form-control" id="prodTracehold" placeholder="0" min="0" max="100" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target Minimal CAQ (%)</label>
+          <input type="number" class="form-control" id="prodTargetMin" placeholder="0" min="0" max="100" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target Omzet Default (Rp)</label>
+          <input type="number" class="form-control" id="prodSalesTarget" placeholder="0" min="0">
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Target Botol / Unit</label>
+          <input type="number" class="form-control" id="prodTargetBotol" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target Closing (paket)</label>
+          <input type="number" class="form-control" id="prodTargetClosing" placeholder="0" min="0">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalProduct')">Batal</button>
+      <button class="btn btn-primary" onclick="saveProduct()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentEmployee = null;
+  let allProducts = [];
+
+  (async () => {
+    currentEmployee = await requireRole(['hr', 'ceo']);
+    if (!currentEmployee) return;
+    initSidebar(currentEmployee);
+    await loadProducts();
+  })();
+
+  async function loadProducts() {
+    const status = document.getElementById('statusFilter').value;
+    const tbody = document.getElementById('productTableBody');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="8"><div class="spinner spinner-sm" style="margin:auto;"></div></td></tr>';
+
+    let queryStr = '?select=*&order=nama';
+    if (status) queryStr += `&status=eq.${status}`;
+
+    let data;
+    try {
+      data = await sbGet('products', queryStr, getToken());
+    } catch(e) { tbody.innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`; return; }
+
+    allProducts = data || [];
+    document.getElementById('productCount').textContent = `${allProducts.length} produk`;
+    renderTable(allProducts);
+  }
+
+  function filterTable() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    renderTable(allProducts.filter(p => p.nama.toLowerCase().includes(q)));
+  }
+
+  function renderTable(products) {
+    const tbody = document.getElementById('productTableBody');
+    if (!products.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:40px;">Belum ada produk.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = products.map(p => `
+      <tr>
+        <td><strong>${p.nama}</strong></td>
+        <td class="text-sm">${p.unit || '—'}</td>
+        <td class="text-right">${formatRupiah(p.harga_satuan)}</td>
+        <td class="text-right">${p.tracehold > 0 ? p.tracehold + '%' : '—'}</td>
+        <td class="text-right">${p.target_minimal > 0 ? p.target_minimal + '%' : '—'}</td>
+        <td class="text-right">${p.target_botol > 0 ? Number(p.target_botol).toLocaleString('id') : '—'}</td>
+        <td class="text-right">${p.target_closing > 0 ? Number(p.target_closing).toLocaleString('id') : '—'}</td>
+        <td><span class="badge ${p.status === 'aktif' ? 'badge-green' : 'badge-red'}">${p.status}</span></td>
+        <td>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-secondary" onclick="openEditProduct(${JSON.stringify(p).replace(/"/g, '&quot;')})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">Hapus</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function openAddProduct() {
+    document.getElementById('productId').value = '';
+    document.getElementById('prodNama').value = '';
+    document.getElementById('prodUnit').value = 'pcs';
+    document.getElementById('prodHarga').value = '';
+    document.getElementById('prodRasio').value = '1';
+    document.getElementById('prodTracehold').value = '';
+    document.getElementById('prodTargetMin').value = '';
+    document.getElementById('prodSalesTarget').value = '';
+    document.getElementById('prodTargetBotol').value = '';
+    document.getElementById('prodTargetClosing').value = '';
+    document.getElementById('prodStatus').value = 'aktif';
+    document.getElementById('modalProductTitle').textContent = 'Tambah Produk';
+    openModal('modalProduct');
+  }
+
+  function openEditProduct(p) {
+    document.getElementById('productId').value = p.id;
+    document.getElementById('prodNama').value = p.nama;
+    document.getElementById('prodUnit').value = p.unit || '';
+    document.getElementById('prodHarga').value = p.harga_satuan || '';
+    document.getElementById('prodRasio').value = p.rasio_closing || 1;
+    document.getElementById('prodTracehold').value = p.tracehold || '';
+    document.getElementById('prodTargetMin').value = p.target_minimal || '';
+    document.getElementById('prodSalesTarget').value = p.sales_target_default || '';
+    document.getElementById('prodTargetBotol').value = p.target_botol || '';
+    document.getElementById('prodTargetClosing').value = p.target_closing || '';
+    document.getElementById('prodStatus').value = p.status || 'aktif';
+    document.getElementById('modalProductTitle').textContent = 'Edit Produk';
+    openModal('modalProduct');
+  }
+
+  async function saveProduct() {
+    const id = document.getElementById('productId').value;
+    const data = {
+      nama: document.getElementById('prodNama').value.trim(),
+      unit: document.getElementById('prodUnit').value.trim() || 'pcs',
+      harga_satuan: Number(document.getElementById('prodHarga').value) || 0,
+      rasio_closing: Number(document.getElementById('prodRasio').value) || 1,
+      tracehold: Number(document.getElementById('prodTracehold').value) || 0,
+      target_minimal: Number(document.getElementById('prodTargetMin').value) || 0,
+      sales_target_default: Number(document.getElementById('prodSalesTarget').value) || 0,
+      target_botol: Number(document.getElementById('prodTargetBotol').value) || 0,
+      target_closing: Number(document.getElementById('prodTargetClosing').value) || 0,
+      status: document.getElementById('prodStatus').value,
+    };
+    if (!data.nama) { showToast('Nama produk wajib diisi.', 'error'); return; }
+
+    try {
+      if (id) {
+        await sbPatch('products', `?id=eq.${id}`, data, getToken());
+      } else {
+        await sbPost('products', data, getToken());
+      }
+    } catch(e) { showToast('Gagal: ' + e.message, 'error'); return; }
+    showToast('Produk berhasil disimpan.', 'success');
+    closeModal('modalProduct');
+    await loadProducts();
+  }
+
+  async function deleteProduct(id) {
+    if (!confirm('Hapus produk ini?')) return;
+    try {
+      await sbDelete('products', `?id=eq.${id}`, getToken());
+    } catch(e) { showToast('Gagal menghapus: ' + e.message, 'error'); return; }
+    showToast('Produk dihapus.', 'success');
+    await loadProducts();
+  }
+</script>
+</body>
+</html>
